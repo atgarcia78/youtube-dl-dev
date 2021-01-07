@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/data/data/com.termux/files/usr/bin/bash
 
 # IMPORTANT: the following assumptions are made
 # * the GH repo is on the origin remote

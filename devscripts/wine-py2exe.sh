@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/data/data/com.termux/files/usr/bin/bash
 
 # Run with as parameter a setup.py that works in the current directory
 # e.g. no os.chdir()

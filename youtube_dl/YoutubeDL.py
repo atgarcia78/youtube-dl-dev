@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/data/data/com.termux/files/usr/bin/env python
 # coding: utf-8
 
 from __future__ import absolute_import, unicode_literals
