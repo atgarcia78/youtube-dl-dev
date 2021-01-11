@@ -15,17 +15,17 @@ import requests
 
 class StreamtapeIE(InfoExtractor):
     IE_NAME = 'streamtape'
-    _VALID_URL = r'https?://streamtape\.com/(?:e|v)/(?P<id>[a-zA-Z0-9_-]+)(?:(/$)|(/.+?$)|$)'
+    _VALID_URL = r'https?://(?:doodstream|streamtape)\.com/(?:e|v)/(?P<id>[a-zA-Z0-9_-]+)(?:(/$)|(/.+?$)|$)'
 
     @staticmethod
     def _extract_url(webpage):
         
         mobj = re.search(
-            r'rel="videolink" href="(?P<real_url>https://streamtape\.com.+?)"', webpage)
+            r'rel="videolink" href="(?P<real_url>https://(?:doodstream|streamtape)\.com.+?)"', webpage)
         if mobj:
             return mobj.group('real_url')
 
-        mobj = re.search(r"reload_video\('(?P<real_url>https://streamtape\.com.+?)/'", webpage)
+        mobj = re.search(r"reload_video\('(?P<real_url>https://(?:doodstream|streamtape)\.com.+?)/'", webpage)
         if mobj:
             return mobj.group('real_url')
         
