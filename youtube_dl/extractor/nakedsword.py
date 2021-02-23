@@ -6,7 +6,7 @@ import re
 
 from .common import InfoExtractor
 from ..utils import (
-    ExtractorError, urlencode_postdata,
+    ExtractorError, NO_DEFAULT, urlencode_postdata,
     sanitize_filename
 )
 
@@ -19,6 +19,14 @@ class NakedSwordBaseIE(InfoExtractor):
     _LOGOUT_URL = "https://nakedsword.com/signout"
     _NETRC_MACHINE = 'nakedsword'
 
+    
+    def islogged(self):
+        page, urlh = self._download_webpage_handle(
+            self._SITE_URL,
+            None
+        )
+        return ("/signout" in page)
+    
     def _login(self):
         username, password = self._get_login_info()
         # print(username)
@@ -70,8 +78,8 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
     _VALID_URL = r"https?://(?:www\.)?nakedsword.com/movies/(?P<movieid>[\d]+)/(?P<title>[a-zA-Z\d_-]+)/scene/(?P<id>[\d]+)/?$"
 
     def _real_initialize(self):
-
-        self._login()
+        if not self.islogged():
+            self._login()
 
     def _real_extract(self, url):
 
@@ -117,9 +125,7 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
                 f['format_id'] = "hls-" + str(n-1)
                 n = n - 1
 
-            title = info_m3u8.get("Title")
-            if not title:
-                title = "nakedsword"
+            title = info_m3u8.get("Title", "nakedsword")
             title = sanitize_filename(title, True)
             title = title + "_scene_" + title_id
 
@@ -171,6 +177,8 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 
         #print(entries)
 
+        self._logout()
+
         return {
             '_type': 'playlist',
             'id': playlist_id,
@@ -194,7 +202,7 @@ class NakedSwordMostWatchedIE(NakedSwordBaseIE):
             if webpage:  
                 #print(webpage)          
                 videos_paths = re.findall(
-                    r"<div class='SRMainTitleDurationLink'><a href='([^\']+)'>",
+                    r"<div class='SRMainTitleDurationLink'><a href='/([^\']+)'>",
                     webpage)     
                 
                 if videos_paths:
@@ -223,22 +231,25 @@ class NakedSwordMostWatchedIE(NakedSwordBaseIE):
 
 class NakedSwordStarsIE(NakedSwordBaseIE):
     IE_NAME = "nakedsword:stars"
-    _VALID_URL = r'https?://(?:www\.)?nakedsword.com/stars/(?P<id>[\d]+)/(?P<name>[a-zA-Z\d_-]+)/?$'
+    _VALID_URL = r'https?://(?:www\.)?nakedsword.com/(?P<typepl>(?:stars|studios))/(?P<id>[\d]+)/(?P<name>[a-zA-Z\d_-]+)/?$'
     _MOST_WATCHED = "?content=Scenes&sort=MostWatched&page="
+    _NPAGES = {"stars" : 1, "studios" : 1}
     
     def _real_extract(self, url):      
        
-
+        
+        data_list = re.search(self._VALID_URL, url).group("typepl", "id", "name")
+        
         entries = []
 
-        for i in range(1,5):
+        for i in range(self._NPAGES[data_list[0]]):
 
 
-            webpage = self._download_webpage(f"{url}{self._MOST_WATCHED}{i}", None, "Downloading web page playlist")
+            webpage = self._download_webpage(f"{url}{self._MOST_WATCHED}{i+1}", None, "Downloading web page playlist")
             if webpage:  
                 #print(webpage)          
                 videos_paths = re.findall(
-                    r"<div class='SRMainTitleDurationLink'><a href='([^\']+)'>",
+                    r"<div class='SRMainTitleDurationLink'><a href='/([^\']+)'>",
                     webpage)     
                 
                 if videos_paths:
@@ -250,7 +261,7 @@ class NakedSwordStarsIE(NakedSwordBaseIE):
                 else:
                     raise ExtractorError("No info")
 
-
+                if not "pagination-next" in webpage: break
                 
             else:
                 raise ExtractorError("No info")
@@ -259,7 +270,7 @@ class NakedSwordStarsIE(NakedSwordBaseIE):
 
         return {
             '_type': 'playlist',
-            'id': "NakedSWord",
-            'title': "NakedSword",
+            'id': data_list[1],
+            'title':  f"NSw{data_list[0].capitalize()}_{''.join(w.capitalize() for w in data_list[2].split('-'))}",
             'entries': entries,
         }

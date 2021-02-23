@@ -266,6 +266,7 @@ from .ctsnews import CtsNewsIE
 from .ctv import CTVIE
 from .ctvnews import CTVNewsIE
 from .cultureunplugged import CultureUnpluggedIE
+from .cumlouder import CumlouderIE
 from .curiositystream import (
     CuriosityStreamIE,
     CuriosityStreamCollectionIE,
@@ -413,9 +414,8 @@ from .francetv import (
     CultureboxIE,
 )
 from .fraternityx import (
-    #FraternityxBaseIE,
-    FraternityxIE,
-    FraternityxPlayListIE,
+    FraternityXIE,
+    FraternityXPlayListIE,
     
 )
 from .freesound import FreesoundIE
@@ -436,7 +436,10 @@ from .gameinformer import GameInformerIE
 from .gamespot import GameSpotIE
 from .gamestar import GameStarIE
 from .gaskrank import GaskrankIE
+from .gaybeeg import GayBeegIE
 from .gayforfans import GayForFansIE
+from .gayforiteu import GayForITEUIE 
+from .gayqt import GayQTIE
 from .gazeta import GazetaIE
 from .gdcvault import GDCVaultIE
 from .gedidigital import GediDigitalIE
@@ -701,6 +704,7 @@ from .mofosex import (
     MofosexEmbedIE,
 )
 from .mojvideo import MojvideoIE
+from .monstercockinfo import MonsterCockInfoIE
 from .morningstar import MorningstarIE
 from .motherless import (
     MotherlessIE,
@@ -727,7 +731,7 @@ from .myvi import (
     MyviIE,
     MyviEmbedIE,
 )
-from .myvidster import MyVidsterIE
+from .myvidster import MyVidsterIE, MyVidsterChannelIE
 from .nakedsword import (
     NakedSwordSceneIE,
     NakedSwordMovieIE,
@@ -766,6 +770,7 @@ from .ndr import (
 from .ndtv import NDTVIE
 from .netzkino import NetzkinoIE
 from .nerdcubed import NerdCubedFeedIE
+from .netdna import NetDNAIE
 from .neteasemusic import (
     NetEaseMusicIE,
     NetEaseMusicAlbumIE,
@@ -1106,7 +1111,6 @@ from .sina import SinaIE
 from .sixplay import SixPlayIE
 from .sketboy import SketBoyIE
 from .sketchysex import (
-    #SketchySexBaseIE,
     SketchySexIE,
     SketchySexPlayListIE,
 )
@@ -1265,6 +1269,7 @@ from .tenplay import TenPlayIE
 from .testurl import TestURLIE
 from .tf1 import TF1IE
 from .tfo import TFOIE
+from .thatgvideo import ThatGVideoIE
 from .theintercept import TheInterceptIE
 from .theplatform import (
     ThePlatformIE,
