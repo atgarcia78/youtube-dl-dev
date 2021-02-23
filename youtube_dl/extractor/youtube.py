@@ -308,7 +308,9 @@ class YoutubeBaseInfoExtractor(InfoExtractor):
             r'^([\d,]+)', re.sub(r'\s', '', view_count_text),
             'view count', default=None))
         uploader = try_get(
-            renderer, lambda x: x['ownerText']['runs'][0]['text'], compat_str)
+            renderer,
+            (lambda x: x['ownerText']['runs'][0]['text'],
+             lambda x: x['shortBylineText']['runs'][0]['text']), compat_str)
         return {
             '_type': 'url_transparent',
             'ie_key': YoutubeIE.ie_key(),
@@ -324,52 +326,57 @@ class YoutubeBaseInfoExtractor(InfoExtractor):
 
 class YoutubeIE(YoutubeBaseInfoExtractor):
     IE_DESC = 'YouTube.com'
+    _INVIDIOUS_SITES = (
+        # invidious-redirect websites
+        r'(?:www\.)?redirect\.invidious\.io',
+        r'(?:(?:www|dev)\.)?invidio\.us',
+        # Invidious instances taken from https://github.com/iv-org/documentation/blob/master/Invidious-Instances.md
+        r'(?:(?:www|no)\.)?invidiou\.sh',
+        r'(?:(?:www|fi)\.)?invidious\.snopyta\.org',
+        r'(?:www\.)?invidious\.kabi\.tk',
+        r'(?:www\.)?invidious\.13ad\.de',
+        r'(?:www\.)?invidious\.mastodon\.host',
+        r'(?:www\.)?invidious\.zapashcanon\.fr',
+        r'(?:www\.)?invidious\.kavin\.rocks',
+        r'(?:www\.)?invidious\.tube',
+        r'(?:www\.)?invidiou\.site',
+        r'(?:www\.)?invidious\.site',
+        r'(?:www\.)?invidious\.xyz',
+        r'(?:www\.)?invidious\.nixnet\.xyz',
+        r'(?:www\.)?invidious\.drycat\.fr',
+        r'(?:www\.)?tube\.poal\.co',
+        r'(?:www\.)?tube\.connect\.cafe',
+        r'(?:www\.)?vid\.wxzm\.sx',
+        r'(?:www\.)?vid\.mint\.lgbt',
+        r'(?:www\.)?yewtu\.be',
+        r'(?:www\.)?yt\.elukerio\.org',
+        r'(?:www\.)?yt\.lelux\.fi',
+        r'(?:www\.)?invidious\.ggc-project\.de',
+        r'(?:www\.)?yt\.maisputain\.ovh',
+        r'(?:www\.)?invidious\.13ad\.de',
+        r'(?:www\.)?invidious\.toot\.koeln',
+        r'(?:www\.)?invidious\.fdn\.fr',
+        r'(?:www\.)?watch\.nettohikari\.com',
+        r'(?:www\.)?kgg2m7yk5aybusll\.onion',
+        r'(?:www\.)?qklhadlycap4cnod\.onion',
+        r'(?:www\.)?axqzx4s6s54s32yentfqojs3x5i7faxza6xo3ehd4bzzsg2ii4fv2iid\.onion',
+        r'(?:www\.)?c7hqkpkpemu6e7emz5b4vyz7idjgdvgaaa3dyimmeojqbgpea3xqjoid\.onion',
+        r'(?:www\.)?fz253lmuao3strwbfbmx46yu7acac2jz27iwtorgmbqlkurlclmancad\.onion',
+        r'(?:www\.)?invidious\.l4qlywnpwqsluw65ts7md3khrivpirse744un3x7mlskqauz5pyuzgqd\.onion',
+        r'(?:www\.)?owxfohz4kjyv25fvlqilyxast7inivgiktls3th44jhk3ej3i7ya\.b32\.i2p',
+        r'(?:www\.)?4l2dgddgsrkf2ous66i6seeyi6etzfgrue332grh2n7madpwopotugyd\.onion',
+    )
     _VALID_URL = r"""(?x)^
                      (
                          (?:https?://|//)                                    # http(s):// or protocol-independent URL
-                         (?:(?:(?:(?:\w+\.)?[yY][oO][uU][tT][uU][bB][eE](?:-nocookie|kids)?\.com/|
-                            (?:www\.)?deturl\.com/www\.youtube\.com/|
-                            (?:www\.)?pwnyoutube\.com/|
-                            (?:www\.)?hooktube\.com/|
-                            (?:www\.)?yourepeat\.com/|
-                            tube\.majestyc\.net/|
-                            # Invidious instances taken from https://github.com/omarroth/invidious/wiki/Invidious-Instances
-                            (?:(?:www|dev)\.)?invidio\.us/|
-                            (?:(?:www|no)\.)?invidiou\.sh/|
-                            (?:(?:www|fi)\.)?invidious\.snopyta\.org/|
-                            (?:www\.)?invidious\.kabi\.tk/|
-                            (?:www\.)?invidious\.13ad\.de/|
-                            (?:www\.)?invidious\.mastodon\.host/|
-                            (?:www\.)?invidious\.zapashcanon\.fr/|
-                            (?:www\.)?invidious\.kavin\.rocks/|
-                            (?:www\.)?invidious\.tube/|
-                            (?:www\.)?invidiou\.site/|
-                            (?:www\.)?invidious\.site/|
-                            (?:www\.)?invidious\.xyz/|
-                            (?:www\.)?invidious\.nixnet\.xyz/|
-                            (?:www\.)?invidious\.drycat\.fr/|
-                            (?:www\.)?tube\.poal\.co/|
-                            (?:www\.)?tube\.connect\.cafe/|
-                            (?:www\.)?vid\.wxzm\.sx/|
-                            (?:www\.)?vid\.mint\.lgbt/|
-                            (?:www\.)?yewtu\.be/|
-                            (?:www\.)?yt\.elukerio\.org/|
-                            (?:www\.)?yt\.lelux\.fi/|
-                            (?:www\.)?invidious\.ggc-project\.de/|
-                            (?:www\.)?yt\.maisputain\.ovh/|
-                            (?:www\.)?invidious\.13ad\.de/|
-                            (?:www\.)?invidious\.toot\.koeln/|
-                            (?:www\.)?invidious\.fdn\.fr/|
-                            (?:www\.)?watch\.nettohikari\.com/|
-                            (?:www\.)?kgg2m7yk5aybusll\.onion/|
-                            (?:www\.)?qklhadlycap4cnod\.onion/|
-                            (?:www\.)?axqzx4s6s54s32yentfqojs3x5i7faxza6xo3ehd4bzzsg2ii4fv2iid\.onion/|
-                            (?:www\.)?c7hqkpkpemu6e7emz5b4vyz7idjgdvgaaa3dyimmeojqbgpea3xqjoid\.onion/|
-                            (?:www\.)?fz253lmuao3strwbfbmx46yu7acac2jz27iwtorgmbqlkurlclmancad\.onion/|
-                            (?:www\.)?invidious\.l4qlywnpwqsluw65ts7md3khrivpirse744un3x7mlskqauz5pyuzgqd\.onion/|
-                            (?:www\.)?owxfohz4kjyv25fvlqilyxast7inivgiktls3th44jhk3ej3i7ya\.b32\.i2p/|
-                            (?:www\.)?4l2dgddgsrkf2ous66i6seeyi6etzfgrue332grh2n7madpwopotugyd\.onion/|
-                            youtube\.googleapis\.com/)                        # the various hostnames, with wildcard subdomains
+                         (?:(?:(?:(?:\w+\.)?[yY][oO][uU][tT][uU][bB][eE](?:-nocookie|kids)?\.com|
+                            (?:www\.)?deturl\.com/www\.youtube\.com|
+                            (?:www\.)?pwnyoutube\.com|
+                            (?:www\.)?hooktube\.com|
+                            (?:www\.)?yourepeat\.com|
+                            tube\.majestyc\.net|
+                            %(invidious)s|
+                            youtube\.googleapis\.com)/                        # the various hostnames, with wildcard subdomains
                          (?:.*?\#/)?                                          # handle anchor (#/) redirect urls
                          (?:                                                  # the various things that can precede the ID:
                              (?:(?:v|embed|e)/(?!videoseries))                # v/ or embed/ or e/
@@ -384,6 +391,7 @@ class YoutubeIE(YoutubeBaseInfoExtractor):
                             youtu\.be|                                        # just youtu.be/xxxx
                             vid\.plus|                                        # or vid.plus/xxxx
                             zwearz\.com/watch|                                # or zwearz.com/watch/xxxx
+                            %(invidious)s
                          )/
                          |(?:www\.)?cleanvideosearch\.com/media/action/yt/watch\?videoId=
                          )
@@ -396,9 +404,13 @@ class YoutubeIE(YoutubeBaseInfoExtractor):
                         )
                      )
                      (?(1).+)?                                                # if we found the ID, everything can follow
-                     $""" % {'playlist_id': YoutubeBaseInfoExtractor._PLAYLIST_ID_RE}
+                     $""" % {
+        'playlist_id': YoutubeBaseInfoExtractor._PLAYLIST_ID_RE,
+        'invidious': '|'.join(_INVIDIOUS_SITES),
+    }
     _PLAYER_INFO_RE = (
-        r'/(?P<id>[a-zA-Z0-9_-]{8,})/player_ias\.vflset(?:/[a-zA-Z]{2,3}_[a-zA-Z]{2,3})?/base\.js$',
+        r'/s/player/(?P<id>[a-zA-Z0-9_-]{8,})/player',
+        r'/(?P<id>[a-zA-Z0-9_-]{8,})/player(?:_ias\.vflset(?:/[a-zA-Z]{2,3}_[a-zA-Z]{2,3})?|-plasma-ias-(?:phone|tablet)-[a-z]{2}_[A-Z]{2}\.vflset)/base\.js$',
         r'\b(?P<id>vfl[a-zA-Z0-9_-]+)\b.*?\.js$',
     )
     _SUBTITLE_FORMATS = ('srv1', 'srv2', 'srv3', 'ttml', 'vtt')
@@ -904,6 +916,15 @@ class YoutubeIE(YoutubeBaseInfoExtractor):
             'only_matching': True,
         },
         {
+            'url': 'https://redirect.invidious.io/watch?v=BaW_jenozKc',
+            'only_matching': True,
+        },
+        {
+            # from https://nitter.pussthecat.org/YouTube/status/1360363141947944964#m
+            'url': 'https://redirect.invidious.io/Yh0AhrY9GjA',
+            'only_matching': True,
+        },
+        {
             # DRM protected
             'url': 'https://www.youtube.com/watch?v=s7_qI6_mIXc',
             'only_matching': True,
@@ -1040,6 +1061,11 @@ class YoutubeIE(YoutubeBaseInfoExtractor):
             'params': {
                 'skip_download': True,
             },
+        },
+        {
+            # controversial video, only works with bpctr when authenticated with cookies
+            'url': 'https://www.youtube.com/watch?v=nGC3D_FkCmg',
+            'only_matching': True,
         },
     ]
     _formats = {
@@ -1237,6 +1263,9 @@ class YoutubeIE(YoutubeBaseInfoExtractor):
         funcname = self._search_regex(
             (r'\b[cs]\s*&&\s*[adf]\.set\([^,]+\s*,\s*encodeURIComponent\s*\(\s*(?P<sig>[a-zA-Z0-9$]+)\(',
              r'\b[a-zA-Z0-9]+\s*&&\s*[a-zA-Z0-9]+\.set\([^,]+\s*,\s*encodeURIComponent\s*\(\s*(?P<sig>[a-zA-Z0-9$]+)\(',
+             r'\bm=(?P<sig>[a-zA-Z0-9$]{2})\(decodeURIComponent\(h\.s\)\)',
+             r'\bc&&\(c=(?P<sig>[a-zA-Z0-9$]{2})\(decodeURIComponent\(c\)\)',
+             r'(?:\b|[^a-zA-Z0-9$])(?P<sig>[a-zA-Z0-9$]{2})\s*=\s*function\(\s*a\s*\)\s*{\s*a\s*=\s*a\.split\(\s*""\s*\);[a-zA-Z0-9$]{2}\.[a-zA-Z0-9$]{2}\(a,\d+\)',
              r'(?:\b|[^a-zA-Z0-9$])(?P<sig>[a-zA-Z0-9$]{2})\s*=\s*function\(\s*a\s*\)\s*{\s*a\s*=\s*a\.split\(\s*""\s*\)',
              r'(?P<sig>[a-zA-Z0-9$]+)\s*=\s*function\(\s*a\s*\)\s*{\s*a\s*=\s*a\.split\(\s*""\s*\)',
              # Obsolete patterns
@@ -1401,7 +1430,8 @@ class YoutubeIE(YoutubeBaseInfoExtractor):
         video_id = self._match_id(url)
         base_url = self.http_scheme() + '//www.youtube.com/'
         webpage_url = base_url + 'watch?v=' + video_id
-        webpage = self._download_webpage(webpage_url, video_id, fatal=False)
+        webpage = self._download_webpage(
+            webpage_url + '&bpctr=9999999999', video_id, fatal=False)
 
         player_response = None
         if webpage:
@@ -1420,7 +1450,7 @@ class YoutubeIE(YoutubeBaseInfoExtractor):
                     'Refetching age-gated info webpage',
                     'unable to download video info webpage', query={
                         'video_id': video_id,
-                        'eurl': 'https://www.youtube.com/embed/' + video_id,
+                        'eurl': 'https://youtube.googleapis.com/v/' + video_id,
                     }, fatal=False)),
                 lambda x: x['player_response'][0],
                 compat_str) or '{}', video_id)
@@ -1573,6 +1603,8 @@ class YoutubeIE(YoutubeBaseInfoExtractor):
                     # Youtube throttles chunks >~10M
                     'http_chunk_size': 10485760,
                 }
+                if dct.get('ext'):
+                    dct['container'] = dct['ext'] + '_dash'
             formats.append(dct)
 
         hls_manifest_url = streaming_data.get('hlsManifestUrl')
@@ -2370,9 +2402,9 @@ class YoutubeTabIE(YoutubeBaseInfoExtractor):
         next_continuation = cls._extract_next_continuation_data(renderer)
         if next_continuation:
             return next_continuation
-        contents = renderer.get('contents')
-        if not isinstance(contents, list):
-            return
+        contents = []
+        for key in ('contents', 'items'):
+            contents.extend(try_get(renderer, lambda x: x[key], list) or [])
         for content in contents:
             if not isinstance(content, dict):
                 continue
@@ -2504,6 +2536,13 @@ class YoutubeTabIE(YoutubeBaseInfoExtractor):
             if continuation_items:
                 continuation_item = continuation_items[0]
                 if not isinstance(continuation_item, dict):
+                    continue
+                renderer = continuation_item.get('gridVideoRenderer')
+                if renderer:
+                    grid_renderer = {'items': continuation_items}
+                    for entry in self._grid_entries(grid_renderer):
+                        yield entry
+                    continuation = self._extract_continuation(grid_renderer)
                     continue
                 renderer = continuation_item.get('playlistVideoRenderer') or continuation_item.get('itemSectionRenderer')
                 if renderer:
