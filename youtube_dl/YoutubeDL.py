@@ -511,7 +511,7 @@ class YoutubeDL(object):
     def to_stdout(self, message, skip_eol=False, check_quiet=False):
         """Print message to stdout if not in quiet mode."""
         if self.params.get('logger'):
-            self.params['logger'].debug(message)
+            self.params['logger'].info(message)
         elif not check_quiet or not self.params.get('quiet', False):
             message = self._bidi_workaround(message)
             terminator = ['\n', ''][skip_eol]

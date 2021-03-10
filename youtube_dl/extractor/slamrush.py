@@ -12,11 +12,6 @@ from ..utils import (
     clean_html,
     get_element_by_class)
 
-from requests_html import (
-    HTMLSession,
-   
-)
-
 
 class SlamRushBaseIE(InfoExtractor):
     _LOGIN_URL = "https://slamrush.com/sign-in"
@@ -188,10 +183,16 @@ class SlamRushPlaylistIE(SlamRushBaseIE):
     _VALID_URL = r"https?://(?:www\.)?slamrush.com"
 
     def _real_initialize(self):
-        if not self.islogged():
-            self._login()
-        else:
-            self.username, self.password = self._get_login_info() 
+        
+        self._set_cookie('slamrush.com', 'pp-accepted', 'true')
+        
+        self.islogged()
+        
+        # if not self.islogged():
+        #      self._login()
+        # else:
+        #      self.username, self.password = self._get_login_info() 
+        
 
     def _real_extract(self, url):
        
