@@ -147,8 +147,8 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
     _MOVIES_URL = "https://nakedsword.com/movies/"
 
     def _real_initialize(self):
-
-        self._login()
+        if not self.islogged():
+            self._login()
 
 
     def _real_extract(self, url):

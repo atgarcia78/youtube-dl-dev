@@ -916,9 +916,9 @@ class InfoExtractor(object):
         self._downloader.report_warning(
             '[%s] %s%s' % (self.IE_NAME, idstr, msg))
 
-    def to_screen(self, msg):
+    def to_screen(self, msg, debug=None):
         """Print msg to screen, prefixing it with '[ie_name]'"""
-        self._downloader.to_screen('[%s] %s' % (self.IE_NAME, msg))
+        self._downloader.to_screen('[%s] %s' % (self.IE_NAME, msg), debug=debug)
 
     def report_extraction(self, id_or_name):
         """Report information extraction."""

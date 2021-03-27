@@ -71,7 +71,7 @@ class OnlyFansBaseIE(InfoExtractor):
                     self.to_screen("No cookie info nor cookie file found. Let's log in")
                     self._login()
         
-            self.to_screen(self.cookies)
+            #self.to_screen(self.cookies)
             self.session.cookies.clear()
             
             for cookie in self.cookies:
@@ -82,7 +82,7 @@ class OnlyFansBaseIE(InfoExtractor):
                     self.session.cookies.set(name=cookie.get('name'), value=cookie.get('value'), 
                                              domain=cookie.get('domain'), path=cookie.get('path'))
                     
-            self.to_screen(list(self.session.cookies))
+           #self.to_screen(list(self.session.cookies))
             
             self.session.headers.update({
                 "Accept":"application/json, text/plain, */*",
@@ -98,6 +98,7 @@ class OnlyFansBaseIE(InfoExtractor):
 
         rc = RClone()
         res = rc.copy(self._COOKIES_PATH, "gdrive:Temp")
+        return res
       
     
     def _login(self):
@@ -138,10 +139,10 @@ class OnlyFansBaseIE(InfoExtractor):
             with open(self._COOKIES_PATH, "w") as f:
                 json.dump(self.cookies, f)
             
-            self._copy_cookies_gdrive()
+            res = self._copy_cookies_gdrive()
 
         except Exception as e:
-            print(e)
+            self.to_screen(str(e))
             
         self.driver.close()
         self.driver.quit()    
@@ -165,34 +166,56 @@ class OnlyFansBaseIE(InfoExtractor):
             
         if index != -1:
             if acc:
-                account = acc
+                account = data_post['fromUser']['username']
+                datevideo = data_post['createdAt'].split("T")[0]
+                videoid = data_post['media'][0]['id']
             else:
                 account = data_post['author']['username']
+                datevideo = data_post['postedAt'].split("T")[0]
+                videoid = str(data_post['id'])
             
-            datevideo = data_post['postedAt'].split("T")[0]
-            videoid = str(data_post['id'])
-
+            
+           
 
             formats = []
             
             try:
 
                 filesize = None
-                try:
-                    filesize = int(self.session.request("HEAD", data_post['media'][index]['info']['source']['source']).headers['content-length'])
-                except Exception as e:
-                    pass
-                formats.append({
-                    'format_id': "http-mp4",
-                    'url': data_post['media'][index]['info']['source']['source'],
-                    'width': data_post['media'][index]['info']['source']['width'],
-                    'height': data_post['media'][index]['info']['source']['height'],
-                    'filesize': filesize,
-                    'format_note' : "source original"
-                })
+                
+                if acc:
+                    try:
+                        filesize = int(self.session.request("HEAD", data_post['media'][index]['source']['source']).headers['content-length'])
+                    except Exception as e:
+                        pass
+                    formats.append({
+                        'url': data_post['media'][index]['source']['source'],
+                        'width': (orig_width := data_post['media'][index]['info']['source']['width']),
+                        'height': (orig_height := data_post['media'][index]['info']['source']['height']),
+                        'format_id': f"{orig_height}p-orig",
+                        'filesize': filesize,
+                        'format_note' : "original",
+                        'ext': "mp4"
+                    })
+                
+                
+                else:
+                    try:
+                        filesize = int(self.session.request("HEAD", data_post['media'][index]['source']['source']).headers['content-length'])
+                    except Exception as e:
+                        pass
+                    formats.append({
+                        'width': (orig_width := data_post['media'][index]['info']['source']['width']),
+                        'height': (orig_height := data_post['media'][index]['info']['source']['height']),
+                        'format_id': f"{orig_height}p-orig",
+                        'url': data_post['media'][index]['source']['source'],                        
+                        'filesize': filesize,
+                        'format_note' : "original",
+                        'ext': "mp4"
+                    })
             except Exception as e:
-                    print(e)
-                    print("No source video format")
+                    self.to_screen(str(e))
+                    self.to_screen("No source video format")
 
             try:
                     
@@ -202,18 +225,26 @@ class OnlyFansBaseIE(InfoExtractor):
                         filesize = int(self.session.request("HEAD",data_post['media'][index]['videoSources']['720']).headers['content-length'])
                     except Exception as e:
                         pass
+                    
+                    if orig_width > orig_height:
+                        height = 720
+                        width = 1280
+                    else:
+                        width = 720
+                        height = 1280
                     formats.append({
-                        'format_id': "http-mp4",
+                        'format_id': f"{height}p",
                         'url': data_post['media'][index]['videoSources']['720'],
-                        'width': data_post['media'][index]['info']['source']['width'],
-                        'height': data_post['media'][index]['info']['source']['height'],
-                        'format_note' : "source 720",
+                        'format_note' : "720",
+                        'height': height,
+                        'width': width,
                         'filesize': filesize,
+                        'ext': "mp4"
                     })
 
             except Exception as e:
-                    print(e)
-                    print("No info for 720p format")
+                    self.to_screen(str(e))
+                    self.to_screen("No info for 720p format")
 
             try:
                 if data_post['media'][index]['videoSources']['240']:
@@ -222,25 +253,40 @@ class OnlyFansBaseIE(InfoExtractor):
                         filesize = int(self.session.request("HEAD",data_post['media'][index]['videoSources']['240']).headers['content-length'])
                     except Exception as e:
                         pass
+                    
+                    if orig_width > orig_height:
+                        height = 240
+                        width = 426
+                    else:
+                        width = 426
+                        height = 240
+                        
                     formats.append({
-                        'format_id': "http-mp4",
+                        'format_id': f"{height}p",
                         'url': data_post['media'][index]['videoSources']['240'],
-                        'format_note' : "source 240",
+                        'format_note' : "240",
+                        'height' : height,
+                        'width' : width,
                         'filesize': filesize,
+                        'ext': "mp4"
                     })
 
             except Exception as e:
-                print(e)
-                print("No info for 240p format")
+                self.to_screen(str(e))
+                self.to_screen("No info for 240p format")
             
            # self._check_formats(formats, videoid)
             if formats:
-                self._sort_formats(formats)
-                #ponemos la fecha del video como id para facilitar filtros
+                if orig_width > orig_height:
+                    self._sort_formats(formats, field_preference=('height', 'width', 'format_id'))
+                else:
+                    self._sort_formats(formats, field_preference=('width', 'height', 'format_id'))
+                
                 info_dict = {
-                    "id" :  datevideo.replace("-", "") + "_" + str(videoid),
-                    "title" :  "post_from_" + account,
-                    "formats" : formats
+                    "id" :  str(videoid),
+                    "title" :  datevideo.replace("-", "") + "_from_" + account,
+                    "formats" : formats,
+                    "ext" : "mp4"
                 }
 
         return info_dict
@@ -273,29 +319,29 @@ class OnlyFansPostIE(OnlyFansBaseIE):
             post = post1 or post2
             account = acc1 or acc2
 
-            self.to_screen("post:" + post + ":" + "account:" + account)
+            self.to_screen("post:" + post + ":" + "account:" + account, debug=True)
         
             self.session.headers["user-id"] = self._USER_ID
             self.session.headers["Referer"] = self._SITE_URL + post + "/" + account
             self.session.headers["Origin"] = self._SITE_URL
             self.session.headers["Access-Token"] = self.session.cookies.get('sess')
 
-            #print(self.session.headers)
-            #print(self.session.cookies)
+            #self.to_screen(self.session.headers)
+            #self.to_screen(self.session.cookies)
 
             r = self.session.request("GET","https://onlyfans.com/api2/v2/posts/" + post + \
                 "?skip_users_dups=1&app-token=" + self.app_token, timeout=60)
 
-            #print(r.text)
+            #self.to_screen(r.text)
 
             data_post = json.loads(r.text)
             
-            self.to_screen(data_post)
+            self.to_screen(data_post, debug=True)
             
             return self._extract_from_json(data_post)
 
         except Exception as e:
-            print(e)
+            self.to_screen(str(e))
 
 class OnlyFansPlaylistIE(OnlyFansBaseIE):
     IE_NAME = 'onlyfans:playlist'
@@ -382,4 +428,29 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
             return self.playlist_result(entries, "Onlyfans:" + account, "Onlyfans:" + account)
 
         except Exception as e:
-            self.to_screen(e)
+            self.to_screen(str(e))
+            
+class OnlyFansPaidlistIE(OnlyFansBaseIE):
+    IE_NAME = 'onlyfans:paidlist'
+    IE_DESC = 'onlyfans:paidlist'
+    _VALID_URL = r"onlyfans:paidlist"
+    _PAID_URL = "https://onlyfans.com/api2/v2/posts/paid?limit=100&offset=0&app-token="
+   
+    def _real_initialize(self):
+        self._init_cookies_and_headers()               
+
+    def _real_extract(self, url):
+ 
+        try:
+            r = self.session.request("GET", self._PAID_URL + self.app_token, timeout=60)
+
+            data = json.loads(r.text)
+            
+            entries = [entry for d in data if (entry := self._extract_from_json(d, acc=True))]
+            #self.to_screen(data)
+            
+            
+            return self.playlist_result(entries, "Onlyfans:paidlist", "Onlyfans:paidlist")
+            
+        except Exception as e:
+            self.to_screen(str(str(e)))

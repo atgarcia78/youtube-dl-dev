@@ -13,10 +13,13 @@ from ..utils import (
 )
 
 import hashlib
+from queue import Queue
+import random
 
 
 import shutil
 from selenium.webdriver import Firefox
+from selenium.webdriver import FirefoxProfile
 from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
@@ -31,46 +34,41 @@ class NetDNAIE(InfoExtractor):
     IE_NAME = "netdna"
     _VALID_URL = r'https?://(www\.)?netdna-storage\.com/f/[^/]+/(?P<title_url>[^\.]+)\.mp4.*'
     _DICT_BYTES = {'KB': 1024, 'MB': 1024*1024, 'GB' : 1024*1024*1024}
-    _FFOX_PROFILES = "/Users/antoniotorres/testing/firefoxprofiles.json"
-    _PROF_LOCK = threading.RLock()
-    
+    #_FFOX_PROFILES = "/Users/antoniotorres/testing/firefoxprofiles.json"
+    #_PROF_LOCK = threading.RLock()
+    #_FF_DICT = [{"id": 1, "path": "/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0", "count": 0}, {"id": 2, "path": "/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium", "count": 0}, {"id": 3, "path": "/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2", "count": 0}, {"id": 4, "path": "/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3", "count": 0}, {"id": 5, "path": "/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4", "count": 0}, {"id": 6, "path": "/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy", "count": 0}]
+    # _FF_PROF = [        
+    #         FirefoxProfile("/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0"),
+    #         FirefoxProfile("/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium"),
+    #         FirefoxProfile("/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2"),
+    #         FirefoxProfile("/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3"),
+    #         FirefoxProfile("/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4"),
+    #         FirefoxProfile("/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy")
+    #     ]
+    _FF_PROF = [        
+            "/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy"
+        ]
+
  
-    def get_ff_prof(self):
-    
-        with open(self._FFOX_PROFILES, "r") as f:
-            ff_dict = json.loads(f.read())
-            
-        prof_path = None
-        prof_id = None
+    @staticmethod
+    def get_video_info(text):
+        _restr = r'Download (?P<title_url>[^\.]+)\.(?P<ext>[^\ ]+) \[(?P<num>[\d\.]+) .*'
+        title, ext, size = re.search(_restr, text).group('title_url', 'ext', 'num')
+        title = title.upper().replace("-", "_")
+        str_id = f"{title}{size}"
+        videoid = int(hashlib.sha256(str_id.encode('utf-8')).hexdigest(),16) % 10**8
+        return({'videoid': videoid, 'title': title, 'name': f"{videoid}_{title}.{ext}"})
         
-        for prof in ff_dict['profiles']:
-            if prof['count'] < 2:
-                prof['count'] += 1
-                prof_id = prof['id']
-                prof_path = prof['path']                    
-                break
         
-        with open(self._FFOX_PROFILES, "w") as f:
-            json.dump(ff_dict, f)
-            
-        return(prof_id, prof_path)
-            
         
-    
-    def rel_ff_prof(self, prof_id):
+    # def _real_initialize(self):
+ 
         
-            with open(self._FFOX_PROFILES, "r") as f:
-                ff_dict = json.loads(f.read())
-                
-            for prof in ff_dict['profiles']:
-                if prof['id'] == prof_id:
-                    if prof['count'] > 0:
-                        prof['count'] -= 1
-                    break
-                
-            with open(self._FFOX_PROFILES, "w") as f:
-                json.dump(ff_dict, f)
-            
+    #     seed_json = self._download_json('https://www.passwordrandom.com/query?command=guid&format=json&count=1', video_id=None, note=None).get('char')[0]
+    #     #self.to_screen(seed_json)
+        
+    #     random.seed(seed_json)
+           
               
     
     def _real_extract(self, url):        
@@ -78,32 +76,31 @@ class NetDNAIE(InfoExtractor):
         title_url = re.search(self._VALID_URL,url).group("title_url")
         self.report_extraction(title_url)
         
-        #self.to_screen(f"{title_url} : lock {NetDNAIE._PROF_LOCK}")
+        #self.to_screen(f"{title_url} : lock {NetDNAIE._PROF_LOCK}")    
+    
+        #(prof_id, prof_ff) = self._get_ff_prof()
+        prof_id = random.randint(0,5)
+        prof_ff = self._FF_PROF[prof_id]
+ 
         
-        with NetDNAIE._PROF_LOCK:
-            count = 10
-            while(count > 0):
-                prof_id, prof_path = self.get_ff_prof()
-                if not prof_id:
-                    time.sleep(1)
-                    count -= 1
-                else: break
+        self.to_screen(f"{title_url} : ffprof [{prof_id}]")      
         
-        self.to_screen(f"{title_url} : ffprof [{prof_id}]")
-        
-        opts = Options()
-        opts.headless = True
-        driver = Firefox(options=opts, firefox_profile=prof_path)
-        driver.maximize_window()
-        wait = WebDriverWait(driver, 15)        
-        client = httpx.Client()
                         
                 
         try:
+            
+            driver = None
+            client = None
+            opts = Options()
+            opts.headless = True
+            driver = Firefox(options=opts, firefox_profile=prof_ff)
+            driver.maximize_window()
+            time.sleep(5)     
+            client = httpx.Client()
         
             driver.get(url)
-                       
-            wait.until(ec.title_contains(""))
+            time.sleep(1)           
+            WebDriverWait(driver, 120).until(ec.title_contains(""))
             
             if "File Not Found" in driver.title: 
                 self.to_screen(f"{title_url} Page not found - {url}")
@@ -111,7 +108,7 @@ class NetDNAIE(InfoExtractor):
             
             else:
                 try:
-                    el1 = wait.until(ec.presence_of_element_located((By.LINK_TEXT, "DOWNLOAD")))                    
+                    el1 = WebDriverWait(driver, 120).until(ec.presence_of_element_located((By.PARTIAL_LINK_TEXT, "DOWNLOAD")))                    
                 except Exception as e:
                     pass
                 
@@ -125,7 +122,7 @@ class NetDNAIE(InfoExtractor):
                 except Exception as e:
                     pass
                     
-                title = el11[0].text.split('.')[0].replace("-", "_")
+                title = el11[0].text.split('.')[0].upper().replace("-", "_")
                 ext = el11[0].text.split('.')[1].lower()
                 est_size_init = el12[0].text.split(' ')
                 str_id = f"{title}{est_size_init[0]}"
@@ -135,7 +132,7 @@ class NetDNAIE(InfoExtractor):
                 driver.get(el1.get_attribute('href'))
                 time.sleep(1)
                 try:
-                    el2 = wait.until(ec.presence_of_element_located((By.LINK_TEXT, "CONTINUE")))
+                    el2 = WebDriverWait(driver, 120).until(ec.presence_of_element_located((By.PARTIAL_LINK_TEXT, "CONTINUE")))
                 except Exception as e:
                     pass
 
@@ -143,13 +140,13 @@ class NetDNAIE(InfoExtractor):
                 driver.get(el2.get_attribute('href'))
                 time.sleep(5)
                 try:
-                    el3 = wait.until(ec.element_to_be_clickable((By.ID,"btn-main")))
+                    el3 = WebDriverWait(driver, 120).until(ec.element_to_be_clickable((By.ID,"btn-main")))
                 except Exception as e:
                     pass
                 el3.click()
-                time.sleep(5)
+                time.sleep(5)               
                 try:
-                    el4 = wait.until(ec.element_to_be_clickable((By.ID, "btn-main")))
+                    el4 = WebDriverWait(driver, 120).until(ec.element_to_be_clickable((By.ID, "btn-main")))
                 except Exception as e:
                     pass
 
@@ -157,7 +154,7 @@ class NetDNAIE(InfoExtractor):
                 time.sleep(1)
                 
                 try:
-                    el5 = wait.until(ec.presence_of_all_elements_located((By.XPATH, "//div[2]/a[@href]")))
+                    el5 = WebDriverWait(driver, 120).until(ec.presence_of_all_elements_located((By.XPATH, "//div[2]/a[@href]")))
                     
                 except Exception as e:
                     pass
@@ -172,23 +169,34 @@ class NetDNAIE(InfoExtractor):
                     for i, f in enumerate(formats):
                         
                         driver.get(f['url'])
-                        el = wait.until(ec.presence_of_element_located((By.LINK_TEXT, "DOWNLOAD")))
+                        el = WebDriverWait(driver, 120).until(ec.presence_of_element_located((By.PARTIAL_LINK_TEXT, "DOWNLOAD")))
                         f['videourl'] = el.get_attribute('href')
                         el2 = driver.find_element_by_xpath("/html/body/section/div[1]/header/p/strong")
                         est_size = el2.text.split(' ')
                         f['estimated_size'] = float(est_size[0].replace(',',''))*self._DICT_BYTES[est_size[1]]
                         #self.to_screen(f"[format video page] {f['videourl']} Estimated size: {f['estimated_size']}")
                         try:
-                            ncount = 1
-                            filesize = None
-                            while (ncount > 0):
+                            #ncount = 1
+                            #filesize = None
+                            #while (ncount > 0):
+                            res = client.head(f['videourl'])
+                            if res.status_code >= 400:
+                                time.sleep(5)
+                                driver.get(f['url'])
+                                el = WebDriverWait(driver, 120).until(ec.presence_of_element_located((By.PARTIAL_LINK_TEXT, "DOWNLOAD")))
+                                f['videourl'] = el.get_attribute('href')
                                 res = client.head(f['videourl'])
                                 if res.status_code >= 400:
-                                    #time.sleep(5)
-                                    ncount -= 1
-                                else:
-                                    filesize = int(res.headers.get('content-length', None))
-                                    break                                
+                                    filesize = None
+                                else: filesize = res.headers.get('content-length', None)
+                            else: filesize = res.headers.get('content-length', None)
+                                
+                                
+                            #         ncount -= 1
+                            #     else:
+                            #filesize = res.headers.get('content-length', None)
+                            if filesize: filesize = int(filesize)
+                                  #  break                                
                         except Exception as e:
                             filesize = None
                         f['filesize'] = filesize
@@ -208,16 +216,17 @@ class NetDNAIE(InfoExtractor):
                     
                 else:
                     try:
-                        ncount = 1
-                        filesize = None
-                        while (ncount > 0):
-                            res = client.head(formats[0]['url'])
-                            if res.status_code >= 400:
+                        # ncount = 1
+                        # filesize = None
+                        # while (ncount > 0):
+                        res = client.head(formats[0]['url'])
+                        #    if res.status_code >= 400:
                                 #time.sleep(5)
-                                ncount -= 1
-                            else:
-                                filesize = int(res.headers.get('content-length', None))
-                                break           
+                        #        ncount -= 1
+                        #    else:
+                        filesize = res.headers.get('content-length', None)
+                        if filesize: filesize = int(filesize)
+                        #        break           
                     except Exception as e:
                         filesize = None
                     estimated_size = float(est_size_init[0].replace(',',''))*self._DICT_BYTES[est_size_init[1]]
@@ -230,12 +239,10 @@ class NetDNAIE(InfoExtractor):
                         'filesize' : final_size,
                         'ext' : ext}]
                 
-                driver.close()
-                driver.quit()
-                client.close()
                 
-                with NetDNAIE._PROF_LOCK:
-                    self.rel_ff_prof(prof_id)
+                
+                # with NetDNAIE._PROF_LOCK:
+                #     self.rel_ff_prof(prof_id)
                     
                 
                 entry = {
@@ -243,12 +250,21 @@ class NetDNAIE(InfoExtractor):
                     'title': sanitize_filename(title,restricted=True),
                     'formats': formats_video,
                     'ext': ext}
+
+                #driver.close()
+                driver.quit()
+                client.close()
             
                 return(entry)                     
             
-        except ExtractorError:
-            raise
+
         except Exception as e:
+            
+            if driver:
+                #driver.close()
+                driver.quit()
+            if client:
+                client.close()
             raise ExtractorError(e)                 
             
             
