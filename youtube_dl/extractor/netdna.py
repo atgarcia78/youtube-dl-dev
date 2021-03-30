@@ -52,7 +52,7 @@ class NetDNAIE(InfoExtractor):
  
     @staticmethod
     def get_video_info(text):
-        _restr = r'Download (?P<title_url>[^\.]+)\.(?P<ext>[^\ ]+) \[(?P<num>[\d\.]+) .*'
+        _restr = r'Download .*\n(?P<title_url>[^\.]+)\.(?P<ext>[^\ ]+) \[(?P<num>[\d\.]+) .*'
         title, ext, size = re.search(_restr, text).group('title_url', 'ext', 'num')
         title = title.upper().replace("-", "_")
         str_id = f"{title}{size}"
@@ -94,13 +94,15 @@ class NetDNAIE(InfoExtractor):
             opts = Options()
             opts.headless = True
             driver = Firefox(options=opts, firefox_profile=prof_ff)
-            driver.maximize_window()
-            time.sleep(5)     
+            driver.install_addon("/Users/antoniotorres/projects/comic_getter/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
+            #driver.maximize_window()
+            #time.sleep(5)     
             client = httpx.Client()
-        
+            #self.to_screen("title: " + (_title:=driver.title))
+            _title = driver.title
             driver.get(url)
             time.sleep(1)           
-            WebDriverWait(driver, 120).until(ec.title_contains(""))
+            WebDriverWait(driver, 60).until_not(ec.title_is(_title))
             
             if "File Not Found" in driver.title: 
                 self.to_screen(f"{title_url} Page not found - {url}")
@@ -108,7 +110,7 @@ class NetDNAIE(InfoExtractor):
             
             else:
                 try:
-                    el1 = WebDriverWait(driver, 120).until(ec.presence_of_element_located((By.PARTIAL_LINK_TEXT, "DOWNLOAD")))                    
+                    el1 = WebDriverWait(driver, 60).until(ec.presence_of_element_located((By.PARTIAL_LINK_TEXT, "DOWNLOAD")))                    
                 except Exception as e:
                     pass
                 
@@ -132,32 +134,44 @@ class NetDNAIE(InfoExtractor):
                 driver.get(el1.get_attribute('href'))
                 time.sleep(1)
                 try:
-                    el2 = WebDriverWait(driver, 120).until(ec.presence_of_element_located((By.PARTIAL_LINK_TEXT, "CONTINUE")))
+                    el2 = WebDriverWait(driver, 60).until(ec.presence_of_element_located((By.PARTIAL_LINK_TEXT, "CONTINUE")))
                 except Exception as e:
                     pass
 
                 #self.to_screen(f"[redirect] {el2.get_attribute('href')}")
                 driver.get(el2.get_attribute('href'))
-                time.sleep(5)
+                time.sleep(1)
                 try:
-                    el3 = WebDriverWait(driver, 120).until(ec.element_to_be_clickable((By.ID,"btn-main")))
+                   # el3 = WebDriverWait(driver, 60).until(ec.element_to_be_clickable((By.ID,"btn-main")))
+                   self.to_screen(driver.title)
+                   el3 = WebDriverWait(driver,60).until(ec.presence_of_element_located((By.ID, "x-token")))
+                   el3.submit()
                 except Exception as e:
                     pass
-                el3.click()
-                time.sleep(5)               
+                #el3.click()
+                time.sleep(1)               
                 try:
-                    el4 = WebDriverWait(driver, 120).until(ec.element_to_be_clickable((By.ID, "btn-main")))
+                    self.to_screen(driver.title)
+                    el4 = WebDriverWait(driver, 60).until(ec.presence_of_element_located((By.ID, "x-token")))
+                    _title = driver.title
+                    el4.submit()                    
                 except Exception as e:
                     pass
 
-                el4.click()
-                time.sleep(1)
+               
                 
+                time.sleep(1)
+               
+                WebDriverWait(driver, 60).until_not(ec.title_is(_title))
+                self.to_screen(f"title: {(_title:=driver.title.lower())}")
+                if "error" in _title: 
+                    self.to_screen(f"{title_url} Page not found - {url}")
+                    raise ExtractorError(f"Page not found - {url}")
                 try:
-                    el5 = WebDriverWait(driver, 120).until(ec.presence_of_all_elements_located((By.XPATH, "//div[2]/a[@href]")))
+                    el5 = WebDriverWait(driver, 60).until(ec.presence_of_all_elements_located((By.XPATH, "//div[2]/a[@href]")))
                     
                 except Exception as e:
-                    pass
+                    self.to_screen(str(e))
                 
                 formats = [{'url': el.get_attribute('href'), 'text' : el.get_attribute('text').replace("\n", "").replace(" ","")} 
                            for el in el5
@@ -169,7 +183,7 @@ class NetDNAIE(InfoExtractor):
                     for i, f in enumerate(formats):
                         
                         driver.get(f['url'])
-                        el = WebDriverWait(driver, 120).until(ec.presence_of_element_located((By.PARTIAL_LINK_TEXT, "DOWNLOAD")))
+                        el = WebDriverWait(driver, 60).until(ec.presence_of_element_located((By.PARTIAL_LINK_TEXT, "DOWNLOAD")))
                         f['videourl'] = el.get_attribute('href')
                         el2 = driver.find_element_by_xpath("/html/body/section/div[1]/header/p/strong")
                         est_size = el2.text.split(' ')
@@ -183,7 +197,7 @@ class NetDNAIE(InfoExtractor):
                             if res.status_code >= 400:
                                 time.sleep(5)
                                 driver.get(f['url'])
-                                el = WebDriverWait(driver, 120).until(ec.presence_of_element_located((By.PARTIAL_LINK_TEXT, "DOWNLOAD")))
+                                el = WebDriverWait(driver, 60).until(ec.presence_of_element_located((By.PARTIAL_LINK_TEXT, "DOWNLOAD")))
                                 f['videourl'] = el.get_attribute('href')
                                 res = client.head(f['videourl'])
                                 if res.status_code >= 400:
@@ -265,6 +279,6 @@ class NetDNAIE(InfoExtractor):
                 driver.quit()
             if client:
                 client.close()
-            raise ExtractorError(e)                 
+            raise ExtractorError(str(e))                 
             
             
