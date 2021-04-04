@@ -34,42 +34,44 @@ class NetDNAIE(InfoExtractor):
     IE_NAME = "netdna"
     _VALID_URL = r'https?://(www\.)?netdna-storage\.com/f/[^/]+/(?P<title_url>[^\.]+)\.mp4.*'
     _DICT_BYTES = {'KB': 1024, 'MB': 1024*1024, 'GB' : 1024*1024*1024}
-    #_FFOX_PROFILES = "/Users/antoniotorres/testing/firefoxprofiles.json"
-    #_PROF_LOCK = threading.RLock()
-    #_FF_DICT = [{"id": 1, "path": "/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0", "count": 0}, {"id": 2, "path": "/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium", "count": 0}, {"id": 3, "path": "/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2", "count": 0}, {"id": 4, "path": "/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3", "count": 0}, {"id": 5, "path": "/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4", "count": 0}, {"id": 6, "path": "/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy", "count": 0}]
-    # _FF_PROF = [        
-    #         FirefoxProfile("/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0"),
-    #         FirefoxProfile("/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium"),
-    #         FirefoxProfile("/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2"),
-    #         FirefoxProfile("/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3"),
-    #         FirefoxProfile("/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4"),
-    #         FirefoxProfile("/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy")
-    #     ]
+
     _FF_PROF = [        
             "/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy"
         ]
 
  
     @staticmethod
-    def get_video_info(text):
-        _restr = r'Download .*\n(?P<title_url>[^\.]+)\.(?P<ext>[^\ ]+) \[(?P<num>[\d\.]+) .*'
-        title, ext, size = re.search(_restr, text).group('title_url', 'ext', 'num')
-        title = title.upper().replace("-", "_")
-        str_id = f"{title}{size}"
-        videoid = int(hashlib.sha256(str_id.encode('utf-8')).hexdigest(),16) % 10**8
-        return({'videoid': videoid, 'title': title, 'name': f"{videoid}_{title}.{ext}"})
+    def get_video_info(text, url):
         
+        #NetDNAIE.to_screen(f"{text}:{url}")
+        _restr = r'(?:(Download)?[\ ]+|)(?P<title_url>[^\.]+)\.(?P<ext>[^\ ]+)[\ ]+\[(?P<size>[^\]]+)\]'
         
-        
-    # def _real_initialize(self):
- 
-        
-    #     seed_json = self._download_json('https://www.passwordrandom.com/query?command=guid&format=json&count=1', video_id=None, note=None).get('char')[0]
-    #     #self.to_screen(seed_json)
-        
-    #     random.seed(seed_json)
-           
-              
+        if (res:=re.search(_restr, text.replace('\n',' '))):
+            title, ext, size = res.group('title_url', 'ext', 'size')
+            title = title.upper().replace("-", "_")
+            _size = size.split(' ')
+            _sizenumb = _size[0].replace(',','.')
+        # if len(_sizenumb.split('.')) == 2:
+        #     if len((_temp:=_sizenumb.split('.')[1])) > 1:
+        #         _temp = "0." + _temp
+        #         _round = round(_temp,1)
+        #         _sizenumb = int(_sizenumb[0])+
+        # else: _sizenumb += '.0' 
+            client = httpx.Client()
+            res = client.get(url)
+            if res.status_code == 200:
+                _num_list = re.findall(r'File size: <strong>([^\ ]+)\ ',res.text)
+                if _num_list:
+                    _num = _num_list[0].replace(',','.')   
+            else:
+                _num = _sizenumb
+
+            client.close()             
+            str_id = f"{title}{_num}"
+            videoid = int(hashlib.sha256(str_id.encode('utf-8')).hexdigest(),16) % 10**8
+            return({'id': videoid, 'title': title, 'name': f"{videoid}_{title}.{ext}", 'size': float(_num)*NetDNAIE._DICT_BYTES[_size[1]]})
+        else: return({'id': None})
+
     
     def _real_extract(self, url):        
         
@@ -80,7 +82,9 @@ class NetDNAIE(InfoExtractor):
     
         #(prof_id, prof_ff) = self._get_ff_prof()
         prof_id = random.randint(0,5)
-        prof_ff = self._FF_PROF[prof_id]
+        prof_ff = FirefoxProfile(self._FF_PROF[prof_id])
+        prof_ff.set_preference('network.proxy.type', 0)
+        prof_ff.update_preferences()
  
         
         self.to_screen(f"{title_url} : ffprof [{prof_id}]")      
@@ -127,7 +131,8 @@ class NetDNAIE(InfoExtractor):
                 title = el11[0].text.split('.')[0].upper().replace("-", "_")
                 ext = el11[0].text.split('.')[1].lower()
                 est_size_init = el12[0].text.split(' ')
-                str_id = f"{title}{est_size_init[0]}"
+                _sizenumb = est_size_init[0].replace(',','.')
+                str_id = f"{title}{_sizenumb}"
                 videoid = int(hashlib.sha256(str_id.encode('utf-8')).hexdigest(),16) % 10**8
                 
                 #self.to_screen(f"[redirect] {el1.get_attribute('href')}")
@@ -143,7 +148,7 @@ class NetDNAIE(InfoExtractor):
                 time.sleep(1)
                 try:
                    # el3 = WebDriverWait(driver, 60).until(ec.element_to_be_clickable((By.ID,"btn-main")))
-                   self.to_screen(driver.title)
+                   #self.to_screen(driver.title)
                    el3 = WebDriverWait(driver,60).until(ec.presence_of_element_located((By.ID, "x-token")))
                    el3.submit()
                 except Exception as e:
@@ -151,7 +156,7 @@ class NetDNAIE(InfoExtractor):
                 #el3.click()
                 time.sleep(1)               
                 try:
-                    self.to_screen(driver.title)
+                    #self.to_screen(driver.title)
                     el4 = WebDriverWait(driver, 60).until(ec.presence_of_element_located((By.ID, "x-token")))
                     _title = driver.title
                     el4.submit()                    
@@ -163,7 +168,7 @@ class NetDNAIE(InfoExtractor):
                 time.sleep(1)
                
                 WebDriverWait(driver, 60).until_not(ec.title_is(_title))
-                self.to_screen(f"title: {(_title:=driver.title.lower())}")
+                #self.to_screen(f"title: {(_title:=driver.title.lower())}")
                 if "error" in _title: 
                     self.to_screen(f"{title_url} Page not found - {url}")
                     raise ExtractorError(f"Page not found - {url}")
@@ -177,100 +182,103 @@ class NetDNAIE(InfoExtractor):
                            for el in el5
                            if el.get_attribute('href')]
                 
-                self.to_screen(f"{title_url} : Extracting formats [{len(formats)}]")
-                if len(formats) > 1:                
-                    
-                    for i, f in enumerate(formats):
+                if formats:
+                
+                    self.to_screen(f"{title_url} : Extracting formats [{len(formats)}]")
+                    if len(formats) > 1:                
                         
-                        driver.get(f['url'])
-                        el = WebDriverWait(driver, 60).until(ec.presence_of_element_located((By.PARTIAL_LINK_TEXT, "DOWNLOAD")))
-                        f['videourl'] = el.get_attribute('href')
-                        el2 = driver.find_element_by_xpath("/html/body/section/div[1]/header/p/strong")
-                        est_size = el2.text.split(' ')
-                        f['estimated_size'] = float(est_size[0].replace(',',''))*self._DICT_BYTES[est_size[1]]
-                        #self.to_screen(f"[format video page] {f['videourl']} Estimated size: {f['estimated_size']}")
-                        try:
-                            #ncount = 1
-                            #filesize = None
-                            #while (ncount > 0):
-                            res = client.head(f['videourl'])
-                            if res.status_code >= 400:
-                                time.sleep(5)
-                                driver.get(f['url'])
-                                el = WebDriverWait(driver, 60).until(ec.presence_of_element_located((By.PARTIAL_LINK_TEXT, "DOWNLOAD")))
-                                f['videourl'] = el.get_attribute('href')
+                        for i, f in enumerate(formats):
+                            
+                            driver.get(f['url'])
+                            el = WebDriverWait(driver, 60).until(ec.presence_of_element_located((By.PARTIAL_LINK_TEXT, "DOWNLOAD")))
+                            f['videourl'] = el.get_attribute('href')
+                            el2 = driver.find_element_by_xpath("/html/body/section/div[1]/header/p/strong")
+                            est_size = el2.text.split(' ')
+                            f['estimated_size'] = float(est_size[0].replace(',',''))*self._DICT_BYTES[est_size[1]]
+                            #self.to_screen(f"[format video page] {f['videourl']} Estimated size: {f['estimated_size']}")
+                            try:
+                                #ncount = 1
+                                #filesize = None
+                                #while (ncount > 0):
                                 res = client.head(f['videourl'])
                                 if res.status_code >= 400:
-                                    filesize = None
+                                    time.sleep(5)
+                                    driver.get(f['url'])
+                                    el = WebDriverWait(driver, 60).until(ec.presence_of_element_located((By.PARTIAL_LINK_TEXT, "DOWNLOAD")))
+                                    f['videourl'] = el.get_attribute('href')
+                                    res = client.head(f['videourl'])
+                                    if res.status_code >= 400:
+                                        filesize = None
+                                    else: filesize = res.headers.get('content-length', None)
                                 else: filesize = res.headers.get('content-length', None)
-                            else: filesize = res.headers.get('content-length', None)
-                                
-                                
-                            #         ncount -= 1
-                            #     else:
-                            #filesize = res.headers.get('content-length', None)
+                                    
+                                    
+                                #         ncount -= 1
+                                #     else:
+                                #filesize = res.headers.get('content-length', None)
+                                if filesize: filesize = int(filesize)
+                                    #  break                                
+                            except Exception as e:
+                                filesize = None
+                            f['filesize'] = filesize
+                            #self.to_screen(f"[format video page] {f['videourl']} Filesize: {f['filesize']}")
+                            f['final_fsize'] = f['filesize'] or f['estimated_size']
+                            videourl_short = f['videourl'].split('download')[0]
+                            self.to_screen(f"{title_url} [format {i+1}/{len(formats)}] {f['text']} {videourl_short}... : Est {f['estimated_size']}B : Real {f['filesize']}B : Format {f['final_fsize']}B")
+                            
+                        formats_video = [{
+                            'format_id' : f['text'],
+                            'url' : f['videourl'],
+                            'filesize' : f['final_fsize'],
+                            'ext' : ext} for f in formats]
+                        
+            
+                        self._sort_formats(formats_video)
+                        
+                    else:
+                        try:
+                            # ncount = 1
+                            # filesize = None
+                            # while (ncount > 0):
+                            res = client.head(formats[0]['url'])
+                            #    if res.status_code >= 400:
+                                    #time.sleep(5)
+                            #        ncount -= 1
+                            #    else:
+                            filesize = res.headers.get('content-length', None)
                             if filesize: filesize = int(filesize)
-                                  #  break                                
+                            #        break           
                         except Exception as e:
                             filesize = None
-                        f['filesize'] = filesize
-                        #self.to_screen(f"[format video page] {f['videourl']} Filesize: {f['filesize']}")
-                        f['final_fsize'] = f['filesize'] or f['estimated_size']
-                        videourl_short = f['videourl'].split('download')[0]
-                        self.to_screen(f"{title_url} [format {i+1}/{len(formats)}] {f['text']} {videourl_short}... : Est {f['estimated_size']}B : Real {f['filesize']}B : Format {f['final_fsize']}B")
+                        estimated_size = float(est_size_init[0].replace(',',''))*self._DICT_BYTES[est_size_init[1]]
+                        final_size = filesize or estimated_size
+                        videourl_short = formats[0]['url'].split("download")[0]
+                        self.to_screen(f"{title_url} [format video page] {formats[0]['text']} {videourl_short} Est {estimated_size}B : Real {filesize}B : Format {final_size}B")        
+                        formats_video = [{
+                            'format_id' : "download",
+                            'url' : formats[0]['url'],
+                            'filesize' : final_size,
+                            'ext' : ext}]
+                    
+                    
+                    
+                    # with NetDNAIE._PROF_LOCK:
+                    #     self.rel_ff_prof(prof_id)
                         
-                    formats_video = [{
-                        'format_id' : f['text'],
-                        'url' : f['videourl'],
-                        'filesize' : f['final_fsize'],
-                        'ext' : ext} for f in formats]
                     
-        
-                    self._sort_formats(formats_video)
-                    
-                else:
-                    try:
-                        # ncount = 1
-                        # filesize = None
-                        # while (ncount > 0):
-                        res = client.head(formats[0]['url'])
-                        #    if res.status_code >= 400:
-                                #time.sleep(5)
-                        #        ncount -= 1
-                        #    else:
-                        filesize = res.headers.get('content-length', None)
-                        if filesize: filesize = int(filesize)
-                        #        break           
-                    except Exception as e:
-                        filesize = None
-                    estimated_size = float(est_size_init[0].replace(',',''))*self._DICT_BYTES[est_size_init[1]]
-                    final_size = filesize or estimated_size
-                    videourl_short = formats[0]['url'].split("download")[0]
-                    self.to_screen(f"{title_url} [format video page] {formats[0]['text']} {videourl_short} Est {estimated_size}B : Real {filesize}B : Format {final_size}B")        
-                    formats_video = [{
-                        'format_id' : "download",
-                        'url' : formats[0]['url'],
-                        'filesize' : final_size,
-                        'ext' : ext}]
-                
-                
-                
-                # with NetDNAIE._PROF_LOCK:
-                #     self.rel_ff_prof(prof_id)
-                    
-                
-                entry = {
-                    'id': str(videoid),
-                    'title': sanitize_filename(title,restricted=True),
-                    'formats': formats_video,
-                    'ext': ext}
+                    entry = {
+                        'id': str(videoid),
+                        'title': sanitize_filename(title,restricted=True),
+                        'formats': formats_video,
+                        'ext': ext}
 
-                #driver.close()
-                driver.quit()
-                client.close()
-            
-                return(entry)                     
-            
+                    #driver.close()
+                    driver.quit()
+                    client.close()
+                
+                    return(entry)  
+                                   
+                else: raise ExtractorError("Formats not found")
 
         except Exception as e:
             

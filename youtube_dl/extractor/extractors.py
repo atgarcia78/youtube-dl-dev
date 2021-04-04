@@ -438,7 +438,10 @@ from .gameinformer import GameInformerIE
 from .gamespot import GameSpotIE
 from .gamestar import GameStarIE
 from .gaskrank import GaskrankIE
-from .gaybeeg import GayBeegIE
+from .gaybeeg import (
+    GayBeegIE,
+    GayBeegPlaylistIE
+)
 from .gayforfans import GayForFansIE
 from .gayforiteu import GayForITEUIE 
 from .gayqt import GayQTIE

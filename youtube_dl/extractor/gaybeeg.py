@@ -2,7 +2,9 @@
 from __future__ import unicode_literals
 
 import re
+from sys import exc_info
 import time
+from youtube_dl.utils import ExtractorError
 
 from .common import InfoExtractor
 
@@ -23,6 +25,7 @@ from selenium.webdriver import FirefoxProfile
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
+from selenium.webdriver import FirefoxProfile
 
 
 
@@ -30,30 +33,40 @@ from queue import Queue
 
 from .netdna import NetDNAIE
 
- 
-class GayBeegIE(InfoExtractor):
-    IE_NAME = "gaybeeg"
-    _VALID_URL = r'https?://(www\.)?gaybeeg\.info/?.*'
+import logging
+
+logger = logging.getLogger("gaybeeg")
+    
+class GayBeegPlaylistIE(InfoExtractor):
+    IE_NAME = "gaybeeg:playlist"
+    _VALID_URL = r'https?://(www\.)?gaybeeg\.info/(?:site|pornstar)/.*'
     _FF_PROF = [        
             "/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy"
         ]
     
     
     def _get_entries(self, el_list):
-        entries = [self.url_result(el_tag.get_attribute('href'), ie="NetDNA", video_title=(info_video:=NetDNAIE.get_video_info(el.text))['title'], 
-                            video_id=info_video['videoid']) 
-                                for el in el_list
+        entries = [{'_type' : 'url', 'url' : el_tag.get_attribute('href'), 'ie' : 'NetDNA', 'title': (info_video:=NetDNAIE.get_video_info(el.text,el_tag.get_attribute('href'))).get('title'), 'id' : info_video.get('id'), 'size': info_video.get('size')}
+                        for el in el_list
                                     for el_tag in el.find_elements_by_tag_name("a")
-                                        if "netdna-storage" in el_tag.get_attribute('href')]
-        self.to_screen(f"[worker] entries [{len(entries)}]\n {entries}")
-        for entry in entries:
-            self.queue_entries.put(entry)
+                                        if "//netdna-storage" in el_tag.get_attribute('href')]        
+        
+        
+
+        #self.to_screen(f"[worker] entries [{len(entries)}]\n {entries}")
+        if entries:
+            for entry in entries:
+                self.queue_entries.put(entry)
+        return(entries) 
+        
     
     def _worker_pl(self, i):
         
                
         prof_id = random.randint(0,5)
-        prof_ff = self._FF_PROF[prof_id]
+        prof_ff = FirefoxProfile(self._FF_PROF[prof_id])
+        prof_ff.set_preference('network.proxy.type', 0) #no proxy
+        prof_ff.update_preferences()
         self.to_screen(f"[worker_pl{i}] init with ffprof[{prof_id}]")
         
         try:
@@ -97,26 +110,12 @@ class GayBeegIE(InfoExtractor):
                     try:
                         driver.get(url_p)
                         time.sleep(1)                
-                        # el_list = WebDriverWait(driver, 120).until(ec.presence_of_all_elements_located((By.XPATH, "//a[@href]")))
-                        # if el_list:
-                        #     entries = [self.url_result(el.get_attribute('href'), ie="NetDNA", video_title=(info_video:=NetDNAIE.get_video_info(el.get_attribute('text')))['title'], 
-                        #                video_id=info_video['videoid']) 
-                        #                     for el in el_list
-                        #                         if "dna-storage" in el.get_attribute('outerHTML')]
-                        #     #entries = [self.url_result(el.get_attribute('href'), "NetDNA") for el in el_list if "dna-storage" in el.get_attribute('outerHTML')]
+
                         el_list = WebDriverWait(driver, 120).until(ec.presence_of_all_elements_located((By.CLASS_NAME, "excerpt")))
                         if el_list:
-                            # entries = [self.url_result(el_tag.get_attribute('href'), ie="NetDNA", video_title=(info_video:=NetDNAIE.get_video_info(el.text))['title'], 
-                            #                             video_id=info_video['videoid']) 
-                            #                                 for el in el_list
-                            #                                     for el_tag in el.find_elements_by_tag_name("a")
-                            #                                         if "netdna-storage" in el_tag.get_attribute('href')]
-                            # self.to_screen(f"[worker_pl_main] entries for main page [{len(entries)}]\n {entries}")
-                            # for entry in entries:
-                            #     self.queue_entries.put(entry)
-                            
-                            # self.to_screen(f"[worker_pl{i}] entries for page_{npage} [{len(entries)}]\n {entries}")
-                            self._get_entries(el_list)
+                           
+                            _entries = self._get_entries(el_list)
+                            self.to_screen(f"[worker_pl{i}]: entries [{len(_entries)}]\n {_entries}")
 
                         else:
                             self.queue_nok.put({'url': url_p, 'page': npage})
@@ -126,6 +125,7 @@ class GayBeegIE(InfoExtractor):
                         
         except Exception as e:
             self.to_screen(f"[worker_pl{i}] {e}")
+            logger.error(str(e), exc_info=True)
             if driver:
                 #driver.close()
                 driver.quit()
@@ -148,7 +148,9 @@ class GayBeegIE(InfoExtractor):
         
         try:
             prof_id = random.randint(0,5)
-            prof_ff = self._FF_PROF[prof_id]
+            prof_ff = FirefoxProfile(self._FF_PROF[prof_id])
+            prof_ff.set_preference('network.proxy.type', 0)
+            prof_ff.update_preferences()
             driver = None
             entries_final = None
             driver = Firefox(options=self.opts, firefox_profile=prof_ff)
@@ -161,21 +163,9 @@ class GayBeegIE(InfoExtractor):
             time.sleep(1)                
             #el_list = WebDriverWait(driver, 120).until(ec.presence_of_all_elements_located((By.XPATH, "//a[@href]")))
             el_list = WebDriverWait(driver, 120).until(ec.presence_of_all_elements_located((By.CLASS_NAME, "excerpt")))
-            # _entries = [el.text for el in el_list]
-            # self.to_screen(_entries)
-            # entries = [self.url_result(el.get_attribute('href'), ie="NetDNA", video_title=(info_video:=NetDNAIE.get_video_info(el.get_attribute('text')))['title'], 
-            #                            video_id=info_video['videoid']) 
-            #                                 for el in el_list
-            #                                     if "netdna-storage" in el.get_attribute('outerHTML')]
+            #self.to_screen(f"{[el.text for el in el_list]}")
             if el_list:
-                # entries = [self.url_result(el_tag.get_attribute('href'), ie="NetDNA", video_title=(info_video:=NetDNAIE.get_video_info(el.text))['title'], 
-                #                             video_id=info_video['videoid']) 
-                #                                 for el in el_list
-                #                                     for el_tag in el.find_elements_by_tag_name("a")
-                #                                         if "netdna-storage" in el_tag.get_attribute('href')]
-                # self.to_screen(f"[worker_pl_main] entries for main page [{len(entries)}]\n {entries}")
-                # for entry in entries:
-                #     self.queue_entries.put(entry)
+                
                 self._get_entries(el_list)
             
             el_pagination = driver.find_elements_by_class_name("pagination")
@@ -191,8 +181,10 @@ class GayBeegIE(InfoExtractor):
                     driver.get(f"{url}page/2")
                     time.sleep(1) 
                     el_list = WebDriverWait(driver, 120).until(ec.presence_of_all_elements_located((By.CLASS_NAME, "excerpt")))
+                    #self.to_screen([el.text for el in el_list])
                     if el_list:
-                        self._get_entries(el_list)
+                        _entries = self._get_entries(el_list)
+                        self.to_screen(f"[worker_pl_main]: entries [{len(_entries)}]\n {_entries}")
                     driver.quit()
                 else:    
                     driver.quit()
@@ -225,6 +217,7 @@ class GayBeegIE(InfoExtractor):
             
         except Exception as e:
             self.to_screen(str(e))
+            logger.error(str(e), exc_info=True)
             if driver:
                 #driver.close()
                 driver.quit()        
@@ -234,6 +227,58 @@ class GayBeegIE(InfoExtractor):
             'id': "gaybeeg",
             'title': "gaybeeg",
             'entries': entries_final
-        }               
+        }       
+        
+        
+class GayBeegIE(InfoExtractor):
+    IE_NAME = "gaybeeg:post"
+    _VALID_URL = r'https?://(www\.)?gaybeeg\.info/\d\d\d\d/\d\d/\d\d/.*'
+    _FF_PROF = [        
+            "/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy"
+        ]        
 
-
+    def _get_entries(self, el_list):
+        entries = [{'_type' : 'url_transparent', 'url' : el_tag.get_attribute('href'), 'ie' : 'NetDNA', 'title': (info_video:=NetDNAIE.get_video_info(el_tag.get_attribute('text'),el_tag.get_attribute('href'))).get('title'), 'id' : info_video.get('id'), 'size': info_video.get('size')}
+                        for el in el_list
+                                    for el_tag in el.find_elements_by_tag_name("a")
+                                        if "//netdna-storage" in el_tag.get_attribute('href')] 
+        return(entries)
+    
+    def _real_initialize(self):
+        self.opts = Options()
+        self.opts.headless = True  
+        
+    def _real_extract(self, url):        
+        
+        try:
+            prof_id = random.randint(0,5)
+            prof_ff = FirefoxProfile(self._FF_PROF[prof_id])
+            prof_ff.set_preference('network.proxy.type', 0)
+            prof_ff.update_preferences()
+            driver = None
+            entries_final = None
+            driver = Firefox(options=self.opts, firefox_profile=prof_ff)
+            driver.install_addon("/Users/antoniotorres/projects/comic_getter/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
+            self.to_screen(f"[worker_pl_main] init with ffprof[{prof_id}]")
+            driver.maximize_window()
+            time.sleep(5)            
+            self.report_extraction(url)
+            driver.get(url)
+            time.sleep(1)                
+            #el_list = WebDriverWait(driver, 120).until(ec.presence_of_all_elements_located((By.XPATH, "//a[@href]")))
+            el_list = WebDriverWait(driver, 120).until(ec.presence_of_all_elements_located((By.CLASS_NAME, "boxed")))
+            entries = None
+            if el_list:
+                    entries = self._get_entries(el_list)
+            driver.quit()
+            
+        except Exception as e:
+            logger.error(str(e), exc_info=True)
+            if driver:
+                driver.quit()
+            if not entries:
+                raise ExtractorError(f'no video info: {str(e)}')
+        
+        if entries:
+           return(entries[0])
+        else: raise ExtractorError('no video info')

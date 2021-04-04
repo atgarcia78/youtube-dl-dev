@@ -43,7 +43,7 @@ test/local_parameters.json
 .tox
 youtube-dl.zsh
 bin/youtube-dl
-
+*.log
 # IntelliJ related files
 .idea
 *.iml
