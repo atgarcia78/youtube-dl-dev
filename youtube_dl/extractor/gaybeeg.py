@@ -46,18 +46,20 @@ class GayBeegPlaylistIE(InfoExtractor):
     
     
     def _get_entries(self, el_list):
-        entries = [{'_type' : 'url', 'url' : el_tag.get_attribute('href'), 'ie' : 'NetDNA', 'title': (info_video:=NetDNAIE.get_video_info(el.text,el_tag.get_attribute('href'))).get('title'), 'id' : info_video.get('id'), 'size': info_video.get('size')}
+        entries = [{'_type' : 'url', 'url' : el_tag.get_attribute('href'), 'ie' : 'NetDNA', 'title': (info_video:=NetDNAIE.get_video_info(el_tag.get_attribute('href'))).get('title'), 'id' : info_video.get('id'), 'size': info_video.get('size')}
                         for el in el_list
                                     for el_tag in el.find_elements_by_tag_name("a")
                                         if "//netdna-storage" in el_tag.get_attribute('href')]        
         
+        #for el in el_list:
+        #    self.to_screen(f"{el.get_attribute('textContent')}:{el.get_attribute('innerHTML')}")
         
 
         #self.to_screen(f"[worker] entries [{len(entries)}]\n {entries}")
         if entries:
             for entry in entries:
-                self.queue_entries.put(entry)
-        return(entries) 
+                if entry.get('id'): self.queue_entries.put(entry)
+        return(entries)
         
     
     def _worker_pl(self, i):
@@ -111,7 +113,7 @@ class GayBeegPlaylistIE(InfoExtractor):
                         driver.get(url_p)
                         time.sleep(1)                
 
-                        el_list = WebDriverWait(driver, 120).until(ec.presence_of_all_elements_located((By.CLASS_NAME, "excerpt")))
+                        el_list = WebDriverWait(driver, 120).until(ec.presence_of_all_elements_located((By.CLASS_NAME, "hentry-large")))
                         if el_list:
                            
                             _entries = self._get_entries(el_list)
@@ -162,7 +164,7 @@ class GayBeegPlaylistIE(InfoExtractor):
             driver.get(url)
             time.sleep(1)                
             #el_list = WebDriverWait(driver, 120).until(ec.presence_of_all_elements_located((By.XPATH, "//a[@href]")))
-            el_list = WebDriverWait(driver, 120).until(ec.presence_of_all_elements_located((By.CLASS_NAME, "excerpt")))
+            el_list = WebDriverWait(driver, 120).until(ec.presence_of_all_elements_located((By.CLASS_NAME, "hentry-large")))
             #self.to_screen(f"{[el.text for el in el_list]}")
             if el_list:
                 
@@ -172,7 +174,12 @@ class GayBeegPlaylistIE(InfoExtractor):
             
             if el_pagination:
                 webpage = el_pagination[0].get_attribute("innerHTML")
-                n_pages = int(re.search(r'Page 1 of (?P<n_pages>[\d]+)<', webpage).group("n_pages"))
+                _n_pages = re.search(r'Page 1 of (?P<n_pages>[\d]+)<', webpage)
+                if _n_pages:
+                    n_pages = int(_n_pages.group("n_pages"))
+                else:
+                    n_pages = 0
+                    driver.quit()
                 #driver.close()
                 #driver.quit()
                 if not url.endswith("/"): url = f"{url}/"
@@ -180,13 +187,13 @@ class GayBeegPlaylistIE(InfoExtractor):
                 if n_pages == 2:
                     driver.get(f"{url}page/2")
                     time.sleep(1) 
-                    el_list = WebDriverWait(driver, 120).until(ec.presence_of_all_elements_located((By.CLASS_NAME, "excerpt")))
+                    el_list = WebDriverWait(driver, 120).until(ec.presence_of_all_elements_located((By.CLASS_NAME, "hentry-large")))
                     #self.to_screen([el.text for el in el_list])
                     if el_list:
                         _entries = self._get_entries(el_list)
                         self.to_screen(f"[worker_pl_main]: entries [{len(_entries)}]\n {_entries}")
                     driver.quit()
-                else:    
+                elif n_pages > 2:    
                     driver.quit()
                     for num in range(2,n_pages+1):                    
                         self.queue_in.put({'url': f"{url}page/{num}", 'page': num})
