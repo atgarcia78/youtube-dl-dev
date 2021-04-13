@@ -245,7 +245,7 @@ class GayBeegIE(InfoExtractor):
         ]        
 
     def _get_entries(self, el_list):
-        entries = [{'_type' : 'url_transparent', 'url' : el_tag.get_attribute('href'), 'ie' : 'NetDNA', 'title': (info_video:=NetDNAIE.get_video_info(el_tag.get_attribute('text'),el_tag.get_attribute('href'))).get('title'), 'id' : info_video.get('id'), 'size': info_video.get('size')}
+        entries = [{'_type' : 'url', 'url' : el_tag.get_attribute('href'), 'ie' : 'NetDNA', 'title': (info_video:=NetDNAIE.get_video_info(el_tag.get_attribute('href'))).get('title'), 'id' : info_video.get('id'), 'size': info_video.get('size')}
                         for el in el_list
                                     for el_tag in el.find_elements_by_tag_name("a")
                                         if "//netdna-storage" in el_tag.get_attribute('href')] 
@@ -258,6 +258,7 @@ class GayBeegIE(InfoExtractor):
     def _real_extract(self, url):        
         
         try:
+            entries = None
             prof_id = random.randint(0,5)
             prof_ff = FirefoxProfile(self._FF_PROF[prof_id])
             prof_ff.set_preference('network.proxy.type', 0)
@@ -273,8 +274,8 @@ class GayBeegIE(InfoExtractor):
             driver.get(url)
             time.sleep(1)                
             #el_list = WebDriverWait(driver, 120).until(ec.presence_of_all_elements_located((By.XPATH, "//a[@href]")))
-            el_list = WebDriverWait(driver, 120).until(ec.presence_of_all_elements_located((By.CLASS_NAME, "boxed")))
-            entries = None
+            el_list = WebDriverWait(driver, 120).until(ec.presence_of_all_elements_located((By.CLASS_NAME, "hentry-large")))
+            
             if el_list:
                     entries = self._get_entries(el_list)
             driver.quit()
@@ -283,9 +284,9 @@ class GayBeegIE(InfoExtractor):
             logger.error(str(e), exc_info=True)
             if driver:
                 driver.quit()
-            if not entries:
+            
+        if not entries:
                 raise ExtractorError(f'no video info: {str(e)}')
+        else:
+            return(entries)
         
-        if entries:
-           return(entries[0])
-        else: raise ExtractorError('no video info')

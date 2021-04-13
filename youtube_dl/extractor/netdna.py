@@ -90,7 +90,7 @@ class NetDNAIE(InfoExtractor):
         if title and _num and _unit:             
             str_id = f"{title}{_num}"
             videoid = int(hashlib.sha256(str_id.encode('utf-8')).hexdigest(),16) % 10**8
-            return({'id': videoid, 'title': title, 'name': f"{videoid}_{title}.{ext}", 'size': float(_num)*NetDNAIE._DICT_BYTES[_unit]})
+            return({'id': str(videoid), 'title': title, 'ext': ext, 'name': f"{videoid}_{title}.{ext}", 'size': float(_num)*NetDNAIE._DICT_BYTES[_unit]})
         else:
             return({'id': None})
 
@@ -119,8 +119,10 @@ class NetDNAIE(InfoExtractor):
     
     def _real_extract(self, url):        
         
-        title_url, ext_url = re.search(self._VALID_URL,url).group("title_url", "ext")
-        self.report_extraction(title_url)
+        #title_url, ext_url = re.search(self._VALID_URL,url).group("title_url", "ext")
+        info_video = NetDNAIE.get_video_info(url)
+        
+        self.report_extraction(info_video.get('title'))
         
         #self.to_screen(f"{title_url} : lock {NetDNAIE._PROF_LOCK}")    
     
@@ -131,7 +133,7 @@ class NetDNAIE(InfoExtractor):
         prof_ff.update_preferences()
  
         
-        self.to_screen(f"{title_url} : ffprof [{prof_id}]")      
+        self.to_screen(f"{info_video.get('title')} : ffprof [{prof_id}]")      
         
                         
                 
@@ -151,12 +153,12 @@ class NetDNAIE(InfoExtractor):
             driver.get(url)
             time.sleep(1)
             try:                           
-                WebDriverWait(driver, 30).until(ec.url_contains("download"))
+                WebDriverWait(driver, 60).until(ec.url_contains("download"))
             except Exception as e:
-                pass
+                raise ExtractorError(f"Bypass didnt work till the last page - {url}")
             
             if "file not found" in (_title:=driver.title.lower()) or "error" in _title:
-                self.to_screen(f"{title_url} Page not found - {url}")
+                self.to_screen(f"{info_video.get('title')} Page not found - {url}")
                 raise ExtractorError(f"Page not found - {url}")
             
             else:
@@ -165,25 +167,25 @@ class NetDNAIE(InfoExtractor):
                 
                 try:
                     
-                    el_title = None
-                    try:
-                        el_title = WebDriverWait(driver, 30).until(ec.presence_of_element_located((By.CSS_SELECTOR, "h1.h2")))
-                    except Exception as e:                        
-                        pass
+                    # el_title = None
+                    # try:
+                    #     el_title = WebDriverWait(driver, 30).until(ec.presence_of_element_located((By.CSS_SELECTOR, "h1.h2")))
+                    # except Exception as e:                        
+                    #     pass
                     
-                    if el_title:
-                        title, _ext = el_title.text.upper().replace('-','_').split('.')
-                        ext = _ext.lower()
-                    else:
-                        title = title_url.upper().replace('-', '_')
-                        ext = ext_url
+                    # if el_title:
+                    #     title, _ext = el_title.text.upper().replace('-','_').split('.')
+                    #     ext = _ext.lower()
+                    # else:
+                    #     title = title_url.upper().replace('-', '_')
+                    #     ext = ext_url
                     
-                    size = re.findall(r'<strong>([^<]+)<', driver.find_element_by_css_selector("p.h4").get_attribute('innerHTML'))
-                    _sizenumb = size[0].split(' ')[0].replace(',','.')
-                    if _sizenumb.count('.') == 2:
-                        _sizenumb = _sizenumb.replace('.','', 1)    
-                    str_id = f"{title}{_sizenumb}" 
-                    videoid = int(hashlib.sha256(str_id.encode('utf-8')).hexdigest(),16) % 10**8             
+                    # size = re.findall(r'<strong>([^<]+)<', driver.find_element_by_css_selector("p.h4").get_attribute('innerHTML'))
+                    # _sizenumb = size[0].split(' ')[0].replace(',','.')
+                    # if _sizenumb.count('.') == 2:
+                    #     _sizenumb = _sizenumb.replace('.','', 1)    
+                    # str_id = f"{title}{_sizenumb}" 
+                    # videoid = int(hashlib.sha256(str_id.encode('utf-8')).hexdigest(),16) % 10**8             
                 
                     el_formats = [{'url' : el.get_attribute('href'), 'text': el.get_attribute('innerText')} 
                                     for el in driver.find_elements_by_css_selector("a.btn.btn--small")]
@@ -193,8 +195,8 @@ class NetDNAIE(InfoExtractor):
                     
                     formats_video.append({'format_id': 'ORIGINAL', 
                                                 'url': (_url:=driver.find_element_by_css_selector("a.btn.btn--xLarge").get_attribute('href')),
-                                                'ext': ext,
-                                                'filesize' : self._get_filesize(_url, client)
+                                                'ext': info_video.get('ext'),
+                                                'filesize' : self._get_filesize(_url, client) or info_video.get('filesize')
                                             })
                     
                     if el_formats and len(el_formats) > 1:                        
@@ -206,8 +208,8 @@ class NetDNAIE(InfoExtractor):
                                 el_url = WebDriverWait(driver, 60).until(ec.presence_of_element_located((By.CSS_SELECTOR,"a.btn.btn--xLarge")))
                                 formats_video.append({'format_id': fmt['text'], 
                                                 'url': (_url:=el_url.get_attribute('href')),
-                                                'ext': ext,
-                                                'filesize' : self._get_filesize(_url, client)
+                                                'ext': info_video.get('ext'),
+                                                'filesize' : self._get_filesize(_url, client) or info_video.get('filesize')
                                                
                                             })
                                 
@@ -215,10 +217,10 @@ class NetDNAIE(InfoExtractor):
                     self._sort_formats(formats_video)
                     
                     entry = {
-                        'id' : str(videoid),
-                        'title': sanitize_filename(title,restricted=True),
+                        'id' : info_video.get('id'),
+                        'title': sanitize_filename(info_video.get('title'),restricted=True),
                         'formats': formats_video,
-                        'ext' : ext
+                        'ext' : info_video.get('ext')
                     }
                     
                     driver.quit()
@@ -238,6 +240,10 @@ class NetDNAIE(InfoExtractor):
                 driver.quit()
             if client:
                 client.close()
-            raise ExtractorError(str(e))                 
+            
+            if isinstance(e, ExtractorError):
+                raise
+            else:
+                raise ExtractorError(str(e)) from e                
             
             
