@@ -65,16 +65,16 @@ class GayBeegPlaylistIE(InfoExtractor):
     def _worker_pl(self, i):
         
                
-        prof_id = random.randint(0,5)
-        prof_ff = FirefoxProfile(self._FF_PROF[prof_id])
-        prof_ff.set_preference('network.proxy.type', 0) #no proxy
-        prof_ff.update_preferences()
+        prof_id = (i+1)//7 + (i+1)%7 - 1
+        prof_ff = FirefoxProfile(self._FF_PROF[prof_id])  
+        opts = Options()
+        opts.headless = True         
         self.to_screen(f"[worker_pl{i}] init with ffprof[{prof_id}]")
         
         try:
             driver = None
-            driver = Firefox(options=self.opts, firefox_profile=prof_ff)
-            driver.install_addon("/Users/antoniotorres/projects/comic_getter/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
+            driver = Firefox(options=opts, firefox_profile=prof_ff)
+            #driver.install_addon("/Users/antoniotorres/projects/comic_getter/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
             driver.maximize_window()
             time.sleep(5)
             
@@ -136,8 +136,7 @@ class GayBeegPlaylistIE(InfoExtractor):
                 
     
     def _real_initialize(self):
-        self.opts = Options()
-        self.opts.headless = True     
+  
         
         
         self.queue_in = Queue()
@@ -151,12 +150,12 @@ class GayBeegPlaylistIE(InfoExtractor):
         try:
             prof_id = random.randint(0,5)
             prof_ff = FirefoxProfile(self._FF_PROF[prof_id])
-            prof_ff.set_preference('network.proxy.type', 0)
-            prof_ff.update_preferences()
+            opts = Options()
+            opts.headless = True             
             driver = None
             entries_final = None
-            driver = Firefox(options=self.opts, firefox_profile=prof_ff)
-            driver.install_addon("/Users/antoniotorres/projects/comic_getter/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
+            driver = Firefox(options=opts, firefox_profile=prof_ff)
+            #driver.install_addon("/Users/antoniotorres/projects/comic_getter/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
             self.to_screen(f"[worker_pl_main] init with ffprof[{prof_id}]")
             driver.maximize_window()
             time.sleep(5)            
@@ -206,7 +205,7 @@ class GayBeegPlaylistIE(InfoExtractor):
                     self.to_screen(list(self.queue_in.queue))
                     
                     
-                    self.workers = min(16,n_pages-1)
+                    self.workers = min(12,n_pages-1)
                     self.total = n_pages - 1
                     self.completed = 0
                     self.to_screen(f"[worker_pl_main] nworkers pool [{self.workers}] total pages to download [{self.total}]")
@@ -251,22 +250,18 @@ class GayBeegIE(InfoExtractor):
                                         if "//netdna-storage" in el_tag.get_attribute('href')] 
         return(entries)
     
-    def _real_initialize(self):
-        self.opts = Options()
-        self.opts.headless = True  
+ 
         
     def _real_extract(self, url):        
         
         try:
             entries = None
             prof_id = random.randint(0,5)
-            prof_ff = FirefoxProfile(self._FF_PROF[prof_id])
-            prof_ff.set_preference('network.proxy.type', 0)
-            prof_ff.update_preferences()
-            driver = None
-            entries_final = None
-            driver = Firefox(options=self.opts, firefox_profile=prof_ff)
-            driver.install_addon("/Users/antoniotorres/projects/comic_getter/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
+            opts = Options()
+            opts.headless = True 
+            prof_ff = FirefoxProfile(self._FF_PROF[prof_id])            
+            driver = None            
+            driver = Firefox(options=opts, firefox_profile=prof_ff)
             self.to_screen(f"[worker_pl_main] init with ffprof[{prof_id}]")
             driver.maximize_window()
             time.sleep(5)            
@@ -288,5 +283,10 @@ class GayBeegIE(InfoExtractor):
         if not entries:
                 raise ExtractorError(f'no video info: {str(e)}')
         else:
-            return(entries)
+            return{
+            '_type': "playlist",
+            'id': "gaybeeg",
+            'title': "gaybeeg",
+            'entries': entries
+        }      
         

@@ -39,16 +39,30 @@ class NetDNAIE(InfoExtractor):
     _FF_PROF = [        
             "/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy"
         ]
-    
-    _COUNT = 0
-    _LOCK = threading.Lock()
-    
 
  
     @staticmethod
     def get_video_info(url):
         
- 
+        #NetDNAIE.to_screen(f"{text}:{url}")
+        #_restr = r'(?:(Download)?[\ ]+|)(?P<title_url>[^\.]+)\.(?P<ext>[^\ ]+)[\ ]+\[(?P<size>[^\]]+)\]'
+        #_restr = r'(?P<title_url>[^\.\ ]+)\.(?P<ext>[^\ ]+)[\ ]+\[(?P<size>[^\]]+)\]'
+        # _restr = r"(?P<title_url>[^\.\ ]+)\.(?P<ext>[^\ ]+) +\[(?P<size>[^\]]+)\]"
+        # _text = text.replace("\n","")
+        # if (res:=re.search(_restr, _text)):
+        #     _title, ext, size = res.group('title_url', 'ext', 'size')
+        #     _title = _title.upper().replace("-", "_")
+        #     _size = size.split(' ')
+        #     _sizenumb = _size[0].replace(',','.')
+        #     if _sizenumb.count('.') == 2:
+        #         _sizenumb = _sizenumb.replace('.','', 1)
+        #     _unit = _size[1].upper()
+        # if len(_sizenumb.split('.')) == 2:
+        #     if len((_temp:=_sizenumb.split('.')[1])) > 1:
+        #         _temp = "0." + _temp
+        #         _round = round(_temp,1)
+        #         _sizenumb = int(_sizenumb[0])+
+        # else: _sizenumb += '.0' 
         title = None
         _num = None
         _unit = None
@@ -114,38 +128,41 @@ class NetDNAIE(InfoExtractor):
                     httpx.ProxyError, AttributeError, RuntimeError) as e:
                 count += 1
         cl.close()
-        return _res   
-        
+        return _res
+            
     
     def _real_extract(self, url):        
         
         #title_url, ext_url = re.search(self._VALID_URL,url).group("title_url", "ext")
         info_video = NetDNAIE.get_video_info(url)
-        with NetDNAIE._LOCK:
-            NetDNAIE._COUNT += 1
-            pos = NetDNAIE._COUNT
-        
-        prof_id = pos%6 
-        self.to_screen(f"New NetDNAIE instance, count instances [{pos}] profile firefox {prof_id}")
-        prof_ff = FirefoxProfile(self._FF_PROF[prof_id])        
-        opts = Options()
-        opts.headless = True
-        driver = Firefox(options=opts, firefox_profile=prof_ff)
-        driver.maximize_window()
-        time.sleep(1) 
-        
-        
         
         self.report_extraction(info_video.get('title'))
         
-        self.to_screen(f"{info_video.get('title')} : ffprof [{prof_id}]")       
-
+        #self.to_screen(f"{title_url} : lock {NetDNAIE._PROF_LOCK}")    
+    
+        #(prof_id, prof_ff) = self._get_ff_prof()
+        prof_id = random.randint(0,5)
+        prof_ff = FirefoxProfile(self._FF_PROF[prof_id])
+        prof_ff.set_preference('network.proxy.type', 1) #con proxy
+        prof_ff.update_preferences()
+ 
+        
+        self.to_screen(f"{info_video.get('title')} : ffprof [{prof_id}]")      
         
                         
                 
         try:
             
-           
+            driver = None
+            
+            opts = Options()
+            opts.headless = True
+            driver = Firefox(options=opts, firefox_profile=prof_ff)
+            #driver.install_addon("/Users/antoniotorres/projects/comic_getter/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
+            driver.maximize_window()
+            time.sleep(1)     
+            
+            #self.to_screen("title: " + (_title:=driver.title))
             _title = driver.title
             driver.get(url)
             time.sleep(1)
@@ -167,9 +184,30 @@ class NetDNAIE(InfoExtractor):
                 self.to_screen(_title)
                 
                 try:
-          
+                    
+                    # el_title = None
+                    # try:
+                    #     el_title = WebDriverWait(driver, 30).until(ec.presence_of_element_located((By.CSS_SELECTOR, "h1.h2")))
+                    # except Exception as e:                        
+                    #     pass
+                    
+                    # if el_title:
+                    #     title, _ext = el_title.text.upper().replace('-','_').split('.')
+                    #     ext = _ext.lower()
+                    # else:
+                    #     title = title_url.upper().replace('-', '_')
+                    #     ext = ext_url
+                    
+                    # size = re.findall(r'<strong>([^<]+)<', driver.find_element_by_css_selector("p.h4").get_attribute('innerHTML'))
+                    # _sizenumb = size[0].split(' ')[0].replace(',','.')
+                    # if _sizenumb.count('.') == 2:
+                    #     _sizenumb = _sizenumb.replace('.','', 1)    
+                    # str_id = f"{title}{_sizenumb}" 
+                    # videoid = int(hashlib.sha256(str_id.encode('utf-8')).hexdigest(),16) % 10**8             
                     time.sleep(1)
                 
+                    #driver.refresh()
+                    #time.sleep(1)
                     
                     formats_video = []
                     #el_url = WebDriverWait(driver, 60).until(ec.presence_of_element_located((By.CSS_SELECTOR,"a.btn.btn--xLarge")))
@@ -247,8 +285,11 @@ class NetDNAIE(InfoExtractor):
                 
         except Exception as e:
             
-            driver.quit() 
-
+            if driver:
+                #driver.close()
+                driver.quit()
+            # if client:
+            #     client.close()
             
             if isinstance(e, ExtractorError):
                 raise
