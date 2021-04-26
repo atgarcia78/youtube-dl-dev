@@ -42,7 +42,7 @@ class StreamtapeIE(InfoExtractor):
         client.headers['user-agent'] = std_headers['User-Agent']
         res = client.get(url)
         _urlh = res.url #type httpx.URL        
-        webpage = res.text
+        webpage = (res.text).replace('\n','')
         
 
         if 'Video not found' in webpage:
@@ -57,19 +57,16 @@ class StreamtapeIE(InfoExtractor):
             title = mobj.group('title').partition(".")[0]
             
 
-        if 'streamtape' in _urlh.netloc:
+        if 'streamtape' in _urlh.host:
 
-            mobj = re.search(r"<script>.*?\.innerHTML = (?P<video_url>.*?);</script>", webpage)
+            mobj = re.findall(r'id\=\"videolink\"\ .*(streamtape\.com/get_video\?id=.*token\=).*token\=(.*)\'', webpage)
             if mobj:
-                video_url = mobj.group('video_url')
-                url_s = video_url.split("+")
-                url_download = "https:"
-                for s in url_s:
-                    url_download = url_download + s.strip(" \"\'")
-                url_download = url_download + "&dl=1"
-                res = client.head(url_download,headers=std_headers)
-                url_video_final = res.headers.get('location', url_download)
-                filesize = int_or_none(res.headers.get('Content-Length'))
+                
+                video_url = "https://" + mobj[0][0] + mobj[0][1] + "&dl=1"
+                
+                res = client.head(video_url)
+                url_video_final = res.url
+                filesize = int_or_none(res.headers.get('content-length'))
                 
                 format_video = {
                     'format_id' : "http-mp4",
@@ -86,7 +83,7 @@ class StreamtapeIE(InfoExtractor):
                 }
 
                 
-        if 'dood.to' or 'doodstream' in _urlh.netloc: 
+        if 'dood.to' or 'doodstream' in _urlh.host: 
 
             mobj = re.search(r"href=\"(?P<video_url>/download/.*?)\"",webpage)
             if mobj:
@@ -135,6 +132,6 @@ class StreamtapeIE(InfoExtractor):
             raise ExtractorError('Video does not exits')
 
                 
-        return self._extract_info_video(url, video_id)
+        return StreamtapeIE._extract_info_video(url, video_id)
               
 

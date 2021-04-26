@@ -164,7 +164,7 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
         self._sort_formats(formats)
 
         average_rating = int_or_none(self._search_regex(
-            r'<div class="progress-big js-rating-title" title="(?P<average_rating>.+?)%">', webpage, 'average_rating', group='average_rating'))
+            r'<div class="progress-big js-rating-title" title="(?P<average_rating>.+?)%">', webpage, 'average_rating', group='average_rating', default=None))
 
 
         return ({

@@ -445,7 +445,8 @@ from .gamestar import GameStarIE
 from .gaskrank import GaskrankIE
 from .gaybeeg import (
     GayBeegIE,
-    GayBeegPlaylistIE
+    GayBeegPlaylistIE,
+    GayBeegPlaylistPageIE,
 )
 from .gayforfans import GayForFansIE
 from .gayforiteu import GayForITEUIE 

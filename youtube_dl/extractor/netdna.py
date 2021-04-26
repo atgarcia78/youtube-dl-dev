@@ -37,7 +37,7 @@ class NetDNAIE(InfoExtractor):
     _DICT_BYTES = {'KB': 1024, 'MB': 1024*1024, 'GB' : 1024*1024*1024}
 
     _FF_PROF = [        
-            "/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy"
+            "/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy", "/Users/antoniotorres/Library/Application Support/Firefox/Profiles/f7zfxja0.selenium_noproxy"
         ]
     
     _COUNT = 0
@@ -124,15 +124,16 @@ class NetDNAIE(InfoExtractor):
         with NetDNAIE._LOCK:
             NetDNAIE._COUNT += 1
             pos = NetDNAIE._COUNT
-        
         prof_id = pos%6 
         self.to_screen(f"New NetDNAIE instance, count instances [{pos}] profile firefox {prof_id}")
         prof_ff = FirefoxProfile(self._FF_PROF[prof_id])        
         opts = Options()
         opts.headless = True
         driver = Firefox(options=opts, firefox_profile=prof_ff)
+        driver.uninstall_addon('@VPNetworksLLC')
+        driver.refresh()
         driver.maximize_window()
-        time.sleep(1) 
+        time.sleep(10) 
         
         
         
@@ -155,13 +156,27 @@ class NetDNAIE(InfoExtractor):
             #     raise ExtractorError(f"Bypass didnt work till the last page - {url}")
             _reswait = self.wait_until(driver, 60, ec.url_contains("download"))
             if _reswait['error']:
-                raise ExtractorError(f"Bypass didnt work till the last page - {url}")
-                
-            
-            if "file not found" in (_title:=driver.title.lower()) or "error" in _title:
+                #raise ExtractorError(f"{url} - Bypass stopped at: {driver.current_url}")
+                time.sleep(10)
+                self.to_screen(f"{url} - Bypass stopped at: {driver.current_url}")
+                _reswait = self.wait_until(driver, 30, ec.presence_of_element_located((By.ID, "x-token")))
+                if not _reswait['error']:
+                    _reswait['el'].submit()
+                    time.sleep(10)
+                    _reswait = self.wait_until(driver, 30, ec.presence_of_element_located((By.ID, "x-token")))
+                    if not _reswait['error']:
+                        _reswait['el'].submit()
+                        time.sleep(1)
+                        _reswait = self.wait_until(driver, 30, ec.url_contains("download"))
+                          
+            _title =driver.title.lower()        
+            if "file not found" in _title or "error" in _title:
                 self.to_screen(f"{info_video.get('title')} Page not found - {url}")
                 raise ExtractorError(f"Page not found - {url}")
             
+            elif not "download" in (_curl:=driver.current_url): 
+                self.to_screen(f"{info_video.get('title')} Bypass stopped at: {_curl}")
+                raise ExtractorError(f"{url} - Bypass stopped at: {_curl}") 
             else:
                 
                 self.to_screen(_title)

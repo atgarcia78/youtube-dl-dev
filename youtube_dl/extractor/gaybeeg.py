@@ -36,10 +36,76 @@ from .netdna import NetDNAIE
 import logging
 
 logger = logging.getLogger("gaybeeg")
+
+
+class GayBeegPlaylistPageIE(InfoExtractor):
+    IE_NAME = "gaybeeg:playlistpage"
+    _VALID_URL = r'https?://(www\.)?gaybeeg\.info.*/page/.*'
+    _FF_PROF = [        
+            "/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy"
+        ]
+    
+    
+    def _get_entries(self, el_list):
+        entries = [{'_type' : 'url', 'url' : el_tag.get_attribute('href'), 'ie' : 'NetDNA', 'title': (info_video:=NetDNAIE.get_video_info(el_tag.get_attribute('href'))).get('title'), 'id' : info_video.get('id'), 'size': info_video.get('size')}
+                        for el in el_list
+                                    for el_tag in el.find_elements_by_tag_name("a")
+                                        if "//netdna-storage" in el_tag.get_attribute('href')]        
+        
+        #for el in el_list:
+        #    self.to_screen(f"{el.get_attribute('textContent')}:{el.get_attribute('innerHTML')}")
+        
+
+        #self.to_screen(f"[worker] entries [{len(entries)}]\n {entries}")
+        return entries
+    
+    def _real_extract(self, url):        
+        
+        try:
+            prof_id = random.randint(0,5)
+            prof_ff = FirefoxProfile(self._FF_PROF[prof_id])
+            opts = Options()
+            opts.headless = True             
+            driver = None
+            entries_final = None
+            driver = Firefox(options=opts, firefox_profile=prof_ff)
+            #driver.install_addon("/Users/antoniotorres/projects/comic_getter/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
+            driver.uninstall_addon('@VPNetworksLLC')
+            driver.refresh()
+            self.to_screen(f"[worker_pl_main] init with ffprof[{prof_id}]")
+            driver.maximize_window()
+            time.sleep(5)            
+            self.report_extraction(url)
+            driver.get(url)
+            time.sleep(1)                
+            #el_list = WebDriverWait(driver, 120).until(ec.presence_of_all_elements_located((By.XPATH, "//a[@href]")))
+            el_list = WebDriverWait(driver, 120).until(ec.presence_of_all_elements_located((By.CLASS_NAME, "hentry-large")))
+            #self.to_screen(f"{[el.text for el in el_list]}")
+            if el_list:
+                
+                entries_final = self._get_entries(el_list)
+            
+            
+                    
+            driver.quit()   
+            
+        except Exception as e:
+            self.to_screen(str(e))
+            logger.error(str(e), exc_info=True)
+            if driver:
+                #driver.close()
+                driver.quit()        
+        
+        return {
+            '_type': "playlist",
+            'id': "gaybeeg",
+            'title': "gaybeeg",
+            'entries': entries_final
+        } 
     
 class GayBeegPlaylistIE(InfoExtractor):
     IE_NAME = "gaybeeg:playlist"
-    _VALID_URL = r'https?://(www\.)?gaybeeg\.info/(?:site|pornstar)/.*'
+    _VALID_URL = r'https?://(www\.)?gaybeeg\.info/(?:site|pornstar)/?'
     _FF_PROF = [        
             "/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy"
         ]
@@ -75,6 +141,8 @@ class GayBeegPlaylistIE(InfoExtractor):
             driver = None
             driver = Firefox(options=opts, firefox_profile=prof_ff)
             #driver.install_addon("/Users/antoniotorres/projects/comic_getter/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
+            driver.uninstall_addon('@VPNetworksLLC')
+            driver.refresh()
             driver.maximize_window()
             time.sleep(5)
             
@@ -156,6 +224,8 @@ class GayBeegPlaylistIE(InfoExtractor):
             entries_final = None
             driver = Firefox(options=opts, firefox_profile=prof_ff)
             #driver.install_addon("/Users/antoniotorres/projects/comic_getter/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
+            driver.uninstall_addon('@VPNetworksLLC')
+            driver.refresh()
             self.to_screen(f"[worker_pl_main] init with ffprof[{prof_id}]")
             driver.maximize_window()
             time.sleep(5)            
@@ -262,6 +332,8 @@ class GayBeegIE(InfoExtractor):
             prof_ff = FirefoxProfile(self._FF_PROF[prof_id])            
             driver = None            
             driver = Firefox(options=opts, firefox_profile=prof_ff)
+            driver.uninstall_addon('@VPNetworksLLC')
+            driver.refresh()
             self.to_screen(f"[worker_pl_main] init with ffprof[{prof_id}]")
             driver.maximize_window()
             time.sleep(5)            
