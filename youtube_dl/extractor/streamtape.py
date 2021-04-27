@@ -35,14 +35,17 @@ class StreamtapeIE(InfoExtractor):
 
 
 
-    @staticmethod
-    def _extract_info_video(url, video_id):
+    
+    def _extract_info_video(self, url, video_id):
 
         client = httpx.Client()
         client.headers['user-agent'] = std_headers['User-Agent']
         res = client.get(url)
         _urlh = res.url #type httpx.URL        
         webpage = (res.text).replace('\n','')
+        
+        self.to_screen(f"url: {str(_urlh)}")
+        self.to_screen(webpage)
         
 
         if 'Video not found' in webpage:
@@ -59,13 +62,14 @@ class StreamtapeIE(InfoExtractor):
 
         if 'streamtape' in _urlh.host:
 
-            mobj = re.findall(r'id\=\"videolink\"\ .*(streamtape\.com/get_video\?id=.*token\=).*token\=(.*)\'', webpage)
+            mobj = re.findall(r'id\=\"videolink\"\ .*(streamtape\.com/get_video\?id=.*token\=).*token\=([^\']+)\'', webpage)
             if mobj:
                 
                 video_url = "https://" + mobj[0][0] + mobj[0][1] + "&dl=1"
+                self.to_screen(f"videourl: {video_url}")
                 
                 res = client.head(video_url)
-                url_video_final = res.url
+                url_video_final = str(res.url)
                 filesize = int_or_none(res.headers.get('content-length'))
                 
                 format_video = {
@@ -131,7 +135,7 @@ class StreamtapeIE(InfoExtractor):
         else:
             raise ExtractorError('Video does not exits')
 
-                
-        return StreamtapeIE._extract_info_video(url, video_id)
+        self.report_extraction(video_id)        
+        return self._extract_info_video(url, video_id)
               
 

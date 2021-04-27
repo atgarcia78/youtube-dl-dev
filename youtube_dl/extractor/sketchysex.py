@@ -239,7 +239,7 @@ class SketchySexIE(SketchySexBaseIE):
     IE_NAME = 'sketchysex'
     IE_DESC = 'sketchysex'
     _VALID_URL = r'https?://(?:www\.)?sketchysex.com/episode/.*'
-    _URL_COOKIES = "https://sketchysex.com"
+    
     
     _LOCK = threading.Lock()
     
@@ -312,12 +312,13 @@ class SketchySexPlayListIE(SketchySexBaseIE):
         driver = Firefox(options=opts, firefox_profile=prof_ff)
         #driver.delete_all_cookies()
         driver.install_addon("/Users/antoniotorres/projects/comic_getter/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
+        driver.maximize_window()
         driver.refresh()
 
         entries = self._extract_list(driver, playlistid)  
         driver.quit()
         
-        return self.playlist_result(entries, f"sketchysex Episodes:{playlistid}", f"sketchysex Episodes:{playlistid}")
+        return self.playlist_result(entries, f"sketchysex_Ep:{playlistid}", f"sketchysex_Ep:{playlistid}")
 
 
         
