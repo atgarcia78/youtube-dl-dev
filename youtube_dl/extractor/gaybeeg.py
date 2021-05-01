@@ -81,19 +81,15 @@ class GayBeegPlaylistPageIE(InfoExtractor):
             #el_list = WebDriverWait(driver, 120).until(ec.presence_of_all_elements_located((By.XPATH, "//a[@href]")))
             el_list = WebDriverWait(driver, 120).until(ec.presence_of_all_elements_located((By.CLASS_NAME, "hentry-large")))
             #self.to_screen(f"{[el.text for el in el_list]}")
-            if el_list:
-                
-                entries_final = self._get_entries(el_list)
+            if el_list:                
+                entries_final = self._get_entries(el_list)         
             
-            
-                    
             driver.quit()   
             
         except Exception as e:
             self.to_screen(str(e))
             logger.error(str(e), exc_info=True)
-            if driver:
-                #driver.close()
+            if driver: 
                 driver.quit()        
         
         return {
@@ -286,7 +282,7 @@ class GayBeegPlaylistIE(InfoExtractor):
                         #wait(futures,return_when=ALL_COMPLETED)
 
             else:
-                #driver.close()
+                
                 driver.quit()
                     
             entries_final = list(self.queue_entries.queue)   
@@ -295,7 +291,7 @@ class GayBeegPlaylistIE(InfoExtractor):
             self.to_screen(str(e))
             logger.error(str(e), exc_info=True)
             if driver:
-                #driver.close()
+                
                 driver.quit()        
         
         return {

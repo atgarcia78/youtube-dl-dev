@@ -100,10 +100,21 @@ class SketchySexBaseIE(InfoExtractor):
             el_password.send_keys(self.password)
             el_login = driver.find_element_by_css_selector("input#submit1.submit1")
             _title = driver.title
+            _current_url = driver.current_url
+            #self.to_screen(f"{_title}#{driver.current_url}")
             el_login.click()
-            self.wait_until_not(driver, 30, ec.title_is(_title))
-            _title = driver.title.lower()
-            if "denied" in _title:
+            self.wait_until(driver, 30, ec.url_changes(_current_url))
+            if "authorize2" in driver.current_url:
+                el_email = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "input#email")))['el']
+                el_lastname = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "input#last-name")))['el']
+                el_email.send_keys("a.tgarc@gmail.com")
+                el_lastname.send_keys("Torres")
+                el_enter = driver.find_element_by_css_selector("button")
+                _current_url = driver.current_url
+                el_enter.click()
+                self.wait_until(driver, 30, ec.url_changes(_current_url))
+            if "multiple-sessions" in driver.current_url:            
+            #if "denied" in _title:
                 self.to_screen("Abort existent session")
                 el_abort = driver.find_element_by_css_selector("button.std-button")
                 el_abort.click()
@@ -254,10 +265,9 @@ class SketchySexIE(SketchySexBaseIE):
                 prof_ff = FirefoxProfile(self._FF_PROF[prof_id])
                 opts = Options()
                 opts.headless = True
-                driver = Firefox(options=opts, firefox_profile=prof_ff)
-                #driver.delete_all_cookies()
+                driver = Firefox(options=opts, firefox_profile=prof_ff)                
                 driver.install_addon("/Users/antoniotorres/projects/comic_getter/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
-                driver.delete_all_cookies()
+                driver.delete_all_cookies()                
                 try:
                     self._login(driver)
                 
@@ -267,7 +277,7 @@ class SketchySexIE(SketchySexBaseIE):
                 
                 SketchySexIE._COOKIES = driver.get_cookies()
                 driver.quit()
-                self.to_screen(SketchySexIE._COOKIES)
+                #self.to_screen(SketchySexIE._COOKIES)
         
 
     def _real_extract(self, url):

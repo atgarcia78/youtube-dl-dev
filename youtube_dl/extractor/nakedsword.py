@@ -29,14 +29,11 @@ class NakedSwordBaseIE(InfoExtractor):
     
     def _login(self):
         username, password = self._get_login_info()
-        # print(username)
-        # print(password)
         if not username or not password:
             self.raise_login_required(
                 'A valid %s account is needed to access this media.'
-                % self._NETRC_MACHINE)
-            
-        self.report_login()
+                % self._NETRC_MACHINE)            
+
         login_form = {
             "SignIn_login": username,
             "SignIn_password": password,
@@ -44,20 +41,17 @@ class NakedSwordBaseIE(InfoExtractor):
             "SignIn_isPostBack": "true",
         }
 
-        # print(login_form)
 
         login_page, url_handle = self._download_webpage_handle(
             self._LOGIN_URL,
             None,
-            note="Logging in",
+            note="Login",
             errnote="Login fail",
             data=urlencode_postdata(login_form),
             headers={
                 "Referer": self._LOGIN_URL,
-                "Origin": "https://www.nakedsword.com",
-                "Upgrade-Insecure-Requests": "1",
-                "Content-Type": "application/x-www-form-urlencoded",
-                "Connection": "keep-alive",
+                "Origin": "https://www.nakedsword.com",                
+                "Content-Type": "application/x-www-form-urlencoded",                
             },
         )
 
@@ -93,12 +87,12 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
             scene_id = mobj.group("sceid")
             if scene_id:
                 getstream_url_m3u8 = "https://www.nakedsword.com/scriptservices/getstream/scene/" + scene_id + "/HLS"
+                getstream_url_dash = "https://www.nakedsword.com/scriptservices/getstream/scene/" + scene_id + "/DASH"
             else:
                 raise ExtractorError("Can't find sceneid")
         else:
             raise ExtractorError("Can't finf sceneid")
         
-        #print(getstream_url_m3u8)
 
         mobj = re.match(self._VALID_URL, url)
         
@@ -124,12 +118,38 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
             for f in formats_m3u8:
                 f['format_id'] = "hls-" + str(n-1)
                 n = n - 1
+                
+            # info_dash = self._download_json(
+            #         getstream_url_dash,
+            #         scene_id,
+            #     )
+
+            # mpd_url_dash = info_dash.get("StreamUrl")
+
+
+            # formats_dash = self._extract_mpd_formats(
+            #     mpd_url_dash, scene_id, mpd_id="dash", fatal=False
+            # )
+
+
+                
+            # n = len(formats_dash)
+            # for f in formats_dash:
+            #     f['format_id'] = "dash-" + str(n-1)
+            #     n = n - 1
+                
+            
 
             title = info_m3u8.get("Title", "nakedsword")
             title = sanitize_filename(title, True)
             title = title + "_scene_" + title_id
 
             self._logout()
+            
+            #formats = formats_m3u8 + formats_dash[:-5]
+            formats = formats_m3u8
+            
+            self._sort_formats(formats)
         
         except Exception as e:
             raise ExtractorError from e
@@ -137,7 +157,7 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
         return {
             "id": scene_id,
             "title": title,
-            "formats": formats_m3u8,
+            "formats": formats,
             "ext": "mp4"
         }
 
