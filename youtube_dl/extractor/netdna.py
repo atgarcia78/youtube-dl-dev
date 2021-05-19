@@ -13,8 +13,8 @@ from ..utils import (
 )
 
 import hashlib
-from queue import Queue
-import random
+import sys
+import traceback
 
 
 import shutil
@@ -77,7 +77,7 @@ class NetDNAIE(InfoExtractor):
         if title and _num and _unit:             
             str_id = f"{title}{_num}"
             videoid = int(hashlib.sha256(str_id.encode('utf-8')).hexdigest(),16) % 10**8
-            return({'id': str(videoid), 'title': title, 'ext': ext, 'name': f"{videoid}_{title}.{ext}", 'size': float(_num)*NetDNAIE._DICT_BYTES[_unit]})
+            return({'id': str(videoid), 'title': title, 'ext': ext, 'name': f"{videoid}_{title}.{ext}", 'filesize': float(_num)*NetDNAIE._DICT_BYTES[_unit]})
         else:
             return({'id': None})
 
@@ -121,40 +121,37 @@ class NetDNAIE(InfoExtractor):
         
         #title_url, ext_url = re.search(self._VALID_URL,url).group("title_url", "ext")
         info_video = NetDNAIE.get_video_info(url)
+        self.report_extraction(info_video.get('title'))
         with NetDNAIE._LOCK:
             NetDNAIE._COUNT += 1
             pos = NetDNAIE._COUNT
-        prof_id = pos%6 
+        
+        prof_id = pos%6         
+        
+        self.to_screen(f"{info_video.get('title')} : ffprof [{prof_id}]")
         self.to_screen(f"New NetDNAIE instance, count instances [{pos}] profile firefox {prof_id}")
         prof_ff = FirefoxProfile(self._FF_PROF[prof_id])        
         opts = Options()
         opts.headless = True
+        opts.add_argument('--no-sandbox')
+        opts.add_argument('--ignore-certificate-errors-spki-list')
+        opts.add_argument('--ignore-ssl-errors')  
         driver = Firefox(options=opts, firefox_profile=prof_ff)
-        driver.uninstall_addon('@VPNetworksLLC')
-        driver.refresh()
         driver.maximize_window()
-        time.sleep(10) 
-        
-        
-        
-        self.report_extraction(info_video.get('title'))
-        
-        self.to_screen(f"{info_video.get('title')} : ffprof [{prof_id}]")       
-
-        
-                        
-                
+        time.sleep(5)
         try:
-            
-           
+            driver.uninstall_addon('@VPNetworksLLC')
+        except Exception as e:
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to.screen(f"Error: \n{'!!'.join(lines)}")
+        
+        driver.refresh()  
+                
+        try:           
             _title = driver.title
             driver.get(url)
             time.sleep(1)
-            # try:                           
-            #     WebDriverWait(driver, 60).until(ec.url_contains("download"))
-            # except Exception as e:
-            #     raise ExtractorError(f"Bypass didnt work till the last page - {url}")
-            _reswait = self.wait_until(driver, 60, ec.url_contains("download"))
+            _reswait = self.wait_until(driver, 90, ec.url_contains("download"))
             if _reswait['error']:
                 #raise ExtractorError(f"{url} - Bypass stopped at: {driver.current_url}")
                 time.sleep(10)
@@ -169,7 +166,7 @@ class NetDNAIE(InfoExtractor):
                         time.sleep(1)
                         _reswait = self.wait_until(driver, 30, ec.url_contains("download"))
                           
-            _title =driver.title.lower()        
+            _title = driver.title.lower()        
             if "file not found" in _title or "error" in _title:
                 self.to_screen(f"{info_video.get('title')} Page not found - {url}")
                 raise ExtractorError(f"Page not found - {url}")
@@ -184,8 +181,6 @@ class NetDNAIE(InfoExtractor):
                 try:
           
                     time.sleep(1)
-                
-                    
                     formats_video = []
                     #el_url = WebDriverWait(driver, 60).until(ec.presence_of_element_located((By.CSS_SELECTOR,"a.btn.btn--xLarge")))
                     _reswait = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR,"a.btn.btn--xLarge")))
@@ -193,23 +188,16 @@ class NetDNAIE(InfoExtractor):
                     if not _reswait['error']:
                         _url = _reswait['el'].get_attribute('href')
                         _filesize = self._get_filesize(_url)
+                    
                     if not _filesize:
                         driver.get(url)
-                        # time.sleep(1)
-                        # try:                           
-                        #     WebDriverWait(driver, 60).until(ec.url_contains("download"))
-                        # except Exception as e:
-                        #     raise ExtractorError(f"Bypass didnt work till the last page - {url}")
-                        _reswait = self.wait_until(driver, 60, ec.url_contains("download"))
+                        _reswait = self.wait_until(driver, 90, ec.url_contains("download"))
                         if _reswait['error']:
                             raise ExtractorError(f"Bypass didnt work till the last page - {url}")
 
                         self.to_screen(driver.title)
-                        time.sleep(1)
-                        
-                        # el_url = WebDriverWait(driver, 60).until(ec.presence_of_element_located((By.CSS_SELECTOR,"a.btn.btn--xLarge")))
-                        # _url = el_url.get_attribute('href')
-                        # _filesize = self._get_filesize(_url)
+                        time.sleep(1)                        
+
                         _reswait = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR,"a.btn.btn--xLarge")))
                         _filesize = None
                         if not _reswait['error']:
@@ -253,8 +241,6 @@ class NetDNAIE(InfoExtractor):
                     
                     driver.quit()
                     return(entry)
-                    
-        
 
                 except Exception as e:
                     
@@ -263,8 +249,6 @@ class NetDNAIE(InfoExtractor):
         except Exception as e:
             
             driver.quit() 
-
-            
             if isinstance(e, ExtractorError):
                 raise
             else:

@@ -78,6 +78,8 @@ class SketchySexBaseIE(InfoExtractor):
         
         #self.to_screen(_title)
         
+        
+        
         driver.get(self._SITE_URL)
         
         self.wait_until_not(driver, 60, ec.title_is(_title))
@@ -265,6 +267,9 @@ class SketchySexIE(SketchySexBaseIE):
                 prof_ff = FirefoxProfile(self._FF_PROF[prof_id])
                 opts = Options()
                 opts.headless = True
+                opts.add_argument('--no-sandbox')
+                opts.add_argument('--ignore-certificate-errors-spki-list')
+                opts.add_argument('--ignore-ssl-errors') 
                 driver = Firefox(options=opts, firefox_profile=prof_ff)                
                 driver.install_addon("/Users/antoniotorres/projects/comic_getter/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
                 driver.delete_all_cookies()                
@@ -285,6 +290,9 @@ class SketchySexIE(SketchySexBaseIE):
         prof_ff = FirefoxProfile(self._FF_PROF[prof_id])
         opts = Options()
         opts.headless = True
+        opts.add_argument('--no-sandbox')
+        opts.add_argument('--ignore-certificate-errors-spki-list')
+        opts.add_argument('--ignore-ssl-errors') 
         driver = Firefox(options=opts, firefox_profile=prof_ff)
         #driver.delete_all_cookies()
         driver.install_addon("/Users/antoniotorres/projects/comic_getter/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
@@ -319,6 +327,9 @@ class SketchySexPlayListIE(SketchySexBaseIE):
         prof_ff = FirefoxProfile(self._FF_PROF[prof_id])
         opts = Options()
         opts.headless = True
+        opts.add_argument('--no-sandbox')
+        opts.add_argument('--ignore-certificate-errors-spki-list')
+        opts.add_argument('--ignore-ssl-errors') 
         driver = Firefox(options=opts, firefox_profile=prof_ff)
         #driver.delete_all_cookies()
         driver.install_addon("/Users/antoniotorres/projects/comic_getter/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)

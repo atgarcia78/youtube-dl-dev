@@ -256,6 +256,9 @@ class FraternityXIE(FraternityXBaseIE):
                 prof_ff = FirefoxProfile(self._FF_PROF[prof_id])
                 opts = Options()
                 opts.headless = True
+                opts.add_argument('--no-sandbox')
+                opts.add_argument('--ignore-certificate-errors-spki-list')
+                opts.add_argument('--ignore-ssl-errors') 
                 driver = Firefox(options=opts, firefox_profile=prof_ff)
                 #driver.delete_all_cookies()
                 driver.install_addon("/Users/antoniotorres/projects/comic_getter/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
@@ -277,6 +280,9 @@ class FraternityXIE(FraternityXBaseIE):
         prof_ff = FirefoxProfile(self._FF_PROF[prof_id])
         opts = Options()
         opts.headless = True
+        opts.add_argument('--no-sandbox')
+        opts.add_argument('--ignore-certificate-errors-spki-list')
+        opts.add_argument('--ignore-ssl-errors') 
         driver = Firefox(options=opts, firefox_profile=prof_ff)
         #driver.delete_all_cookies()
         driver.install_addon("/Users/antoniotorres/projects/comic_getter/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
@@ -311,6 +317,9 @@ class FraternityXPlayListIE(FraternityXBaseIE):
         prof_ff = FirefoxProfile(self._FF_PROF[prof_id])
         opts = Options()
         opts.headless = True
+        opts.add_argument('--no-sandbox')
+        opts.add_argument('--ignore-certificate-errors-spki-list')
+        opts.add_argument('--ignore-ssl-errors') 
         driver = Firefox(options=opts, firefox_profile=prof_ff)
         #driver.delete_all_cookies()
         driver.install_addon("/Users/antoniotorres/projects/comic_getter/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)

@@ -14,7 +14,8 @@ from concurrent.futures import (
     ALL_COMPLETED
 )
 
-
+import traceback
+import sys
 
 
 import shutil
@@ -47,7 +48,7 @@ class GayBeegPlaylistPageIE(InfoExtractor):
     
     
     def _get_entries(self, el_list):
-        entries = [{'_type' : 'url', 'url' : el_tag.get_attribute('href'), 'ie' : 'NetDNA', 'title': (info_video:=NetDNAIE.get_video_info(el_tag.get_attribute('href'))).get('title'), 'id' : info_video.get('id'), 'size': info_video.get('size')}
+        entries = [{'_type' : 'url', 'url' : el_tag.get_attribute('href'), 'ie' : 'NetDNA', 'title': (info_video:=NetDNAIE.get_video_info(el_tag.get_attribute('href'))).get('title'), 'id' : info_video.get('id'), 'size': info_video.get('filesize')}
                         for el in el_list
                                     for el_tag in el.find_elements_by_tag_name("a")
                                         if "//netdna-storage" in el_tag.get_attribute('href')]        
@@ -65,12 +66,20 @@ class GayBeegPlaylistPageIE(InfoExtractor):
             prof_id = random.randint(0,5)
             prof_ff = FirefoxProfile(self._FF_PROF[prof_id])
             opts = Options()
-            opts.headless = True             
+            opts.headless = True 
+            opts.add_argument('--no-sandbox')
+            opts.add_argument('--ignore-certificate-errors-spki-list')
+            opts.add_argument('--ignore-ssl-errors')              
             driver = None
             entries_final = None
             driver = Firefox(options=opts, firefox_profile=prof_ff)
             #driver.install_addon("/Users/antoniotorres/projects/comic_getter/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
-            driver.uninstall_addon('@VPNetworksLLC')
+            try:
+                driver.uninstall_addon('@VPNetworksLLC')
+            except Exception as e:
+                lines = traceback.format_exception(*sys.exc_info())
+                self.to.screen(f"Error: \n{'!!'.join(lines)}")
+            
             driver.refresh()
             self.to_screen(f"[worker_pl_main] init with ffprof[{prof_id}]")
             driver.maximize_window()
@@ -101,14 +110,14 @@ class GayBeegPlaylistPageIE(InfoExtractor):
     
 class GayBeegPlaylistIE(InfoExtractor):
     IE_NAME = "gaybeeg:playlist"
-    _VALID_URL = r'https?://(www\.)?gaybeeg\.info/(?:site|pornstar)/?'
+    _VALID_URL = r'https?://(www\.)?gaybeeg\.info/(?:site|pornstar)/[^/$]+/?$'
     _FF_PROF = [        
             "/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy"
         ]
     
     
     def _get_entries(self, el_list):
-        entries = [{'_type' : 'url', 'url' : el_tag.get_attribute('href'), 'ie' : 'NetDNA', 'title': (info_video:=NetDNAIE.get_video_info(el_tag.get_attribute('href'))).get('title'), 'id' : info_video.get('id'), 'size': info_video.get('size')}
+        entries = [{'_type' : 'url', 'url' : el_tag.get_attribute('href'), 'ie' : 'NetDNA', 'title': (info_video:=NetDNAIE.get_video_info(el_tag.get_attribute('href'))).get('title'), 'id' : info_video.get('id'), 'filesize': info_video.get('filesize')}
                         for el in el_list
                                     for el_tag in el.find_elements_by_tag_name("a")
                                         if "//netdna-storage" in el_tag.get_attribute('href')]        
@@ -131,6 +140,9 @@ class GayBeegPlaylistIE(InfoExtractor):
         prof_ff = FirefoxProfile(self._FF_PROF[prof_id])  
         opts = Options()
         opts.headless = True         
+        opts.add_argument('--no-sandbox')
+        opts.add_argument('--ignore-certificate-errors-spki-list')
+        opts.add_argument('--ignore-ssl-errors')  
         self.to_screen(f"[worker_pl{i}] init with ffprof[{prof_id}]")
         
         try:
@@ -215,16 +227,25 @@ class GayBeegPlaylistIE(InfoExtractor):
             prof_id = random.randint(0,5)
             prof_ff = FirefoxProfile(self._FF_PROF[prof_id])
             opts = Options()
-            opts.headless = True             
+            opts.headless = True
+            opts.add_argument('--no-sandbox')
+            opts.add_argument('--ignore-certificate-errors-spki-list')
+            opts.add_argument('--ignore-ssl-errors')              
             driver = None
             entries_final = None
             driver = Firefox(options=opts, firefox_profile=prof_ff)
             #driver.install_addon("/Users/antoniotorres/projects/comic_getter/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
-            driver.uninstall_addon('@VPNetworksLLC')
-            driver.refresh()
-            self.to_screen(f"[worker_pl_main] init with ffprof[{prof_id}]")
             driver.maximize_window()
             time.sleep(5)            
+            try:
+                driver.uninstall_addon('@VPNetworksLLC')
+            except Exception as e:
+                lines = traceback.format_exception(*sys.exc_info())
+                self.to.screen(f"Error: \n{'!!'.join(lines)}")
+            
+            driver.refresh()
+            self.to_screen(f"[worker_pl_main] init with ffprof[{prof_id}]")
+                        
             self.report_extraction(url)
             driver.get(url)
             time.sleep(1)                
@@ -310,7 +331,7 @@ class GayBeegIE(InfoExtractor):
         ]        
 
     def _get_entries(self, el_list):
-        entries = [{'_type' : 'url', 'url' : el_tag.get_attribute('href'), 'ie' : 'NetDNA', 'title': (info_video:=NetDNAIE.get_video_info(el_tag.get_attribute('href'))).get('title'), 'id' : info_video.get('id'), 'size': info_video.get('size')}
+        entries = [{'_type' : 'url', 'url' : el_tag.get_attribute('href'), 'ie' : 'NetDNA', 'title': (info_video:=NetDNAIE.get_video_info(el_tag.get_attribute('href'))).get('title'), 'id' : info_video.get('id'), 'filesize': info_video.get('filesize')}
                         for el in el_list
                                     for el_tag in el.find_elements_by_tag_name("a")
                                         if "//netdna-storage" in el_tag.get_attribute('href')] 
@@ -325,14 +346,23 @@ class GayBeegIE(InfoExtractor):
             prof_id = random.randint(0,5)
             opts = Options()
             opts.headless = True 
+            opts.add_argument('--no-sandbox')
+            opts.add_argument('--ignore-certificate-errors-spki-list')
+            opts.add_argument('--ignore-ssl-errors')  
             prof_ff = FirefoxProfile(self._FF_PROF[prof_id])            
             driver = None            
             driver = Firefox(options=opts, firefox_profile=prof_ff)
-            driver.uninstall_addon('@VPNetworksLLC')
+            driver.maximize_window()
+            time.sleep(5)   
+            try:
+                driver.uninstall_addon('@VPNetworksLLC')
+            except Exception as e:
+                lines = traceback.format_exception(*sys.exc_info())
+                self.to.screen(f"Error: \n{'!!'.join(lines)}")
+            
             driver.refresh()
             self.to_screen(f"[worker_pl_main] init with ffprof[{prof_id}]")
-            driver.maximize_window()
-            time.sleep(5)            
+         
             self.report_extraction(url)
             driver.get(url)
             time.sleep(1)                

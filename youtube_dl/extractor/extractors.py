@@ -897,8 +897,7 @@ from .onet import (
 from .onionstudios import OnionStudiosIE
 from .onlyfans import (
     OnlyFansPostIE,
-    OnlyFansPlaylistIE,
-    OnlyFansResetIE,
+    OnlyFansPlaylistIE,    
     OnlyFansPaidlistIE,
 )
 from .ooyala import (
