@@ -53,18 +53,10 @@ class succ_or_twlogin():
             return (el[0],)       
         else:
             
-             # username_element = self.wait_until(driver, 120, ec.presence_of_element_located(                
-            #     (By.CSS_SELECTOR, "input#username_or_email") ))
-            # password_element = self.wait_until(driver, 120, ec.presence_of_element_located(                
-            #     (By.CSS_SELECTOR, "input#password") ))
-            # login_element = self.wait_until(driver, 120, ec.presence_of_element_located(                
-            #     (By.CSS_SELECTOR, "input#allow.submit") ))
             el_username = driver.find_elements_by_css_selector("input#username_or_email")
-            el_password =  driver.find_elements_by_css_selector("input#password")                
-           
+            el_password =  driver.find_elements_by_css_selector("input#password") 
             el_login = driver.find_elements_by_css_selector("input#allow.submit")
-            
-            
+                        
             if el_username and el_password and el_login:
                 return (el_username[0], el_password[0], el_login[0])
             
@@ -80,13 +72,7 @@ class succ_or_twrelogin():
         if el:            
             return (el[0])       
         else:
-            
-           # el_username = ec.presence_of_element_located(
-           #     (By.PARTIAL_LINK_TEXT, 'usuario') )(driver)
-        #    el_password =  ec.presence_of_element_located(
-        #         (By.PARTIAL_LINK_TEXT, 'Contraseña') )(driver)
-        # el_login = ec.presence_of_element_located(
-        #         (By.PARTIAL_LINK_TEXT, 'Iniciar') )(driver)
+
             el_username = driver.find_elements_by_partial_link_text("usuario")
             el_password =  driver.find_elements_by_partial_link_text("Contra")               
            
@@ -134,6 +120,24 @@ class OnlyFansBaseIE(InfoExtractor):
             el = None
             
         return el 
+    
+    def wait_until_json(self, driver, link, timeout):
+        count = timeout
+        list_requests = set()
+        while (count > 0):
+            
+            list_requests.update(driver.requests)
+            for request in list_requests:
+                    
+                    if link in request.url:
+                        if request.response:
+                            self.to_screen(f"{request.method}:{request.url}:{request.response.status_code}")
+                            data_post = json.loads(request.response.body.decode())
+                            return data_post
+                        #return self._extract_from_json(data_post, user_profile=account)      
+                   
+            count -= 1
+            time.sleep(1)
    
     
     def _login(self, driver):
@@ -342,27 +346,6 @@ class OnlyFansBaseIE(InfoExtractor):
 
         return info_dict
     
-
-    
-  
-  
-    def wait_until_json(self, driver, link, timeout):
-        count = timeout
-        list_requests = set()
-        while (count > 0):
-            
-            list_requests.update(driver.requests)
-            for request in list_requests:
-                    
-                    if link in request.url:
-                        if request.response:
-                            self.to_screen(f"{request.method}:{request.url}:{request.response.status_code}")
-                            data_post = json.loads(request.response.body.decode())
-                            return data_post
-                        #return self._extract_from_json(data_post, user_profile=account)      
-                   
-            count -= 1
-            time.sleep(1)
     
     def print_requests(self, driver, text=None):
         
@@ -376,39 +359,8 @@ class OnlyFansBaseIE(InfoExtractor):
                 self.to_screen(f"{request.method}:{request.url}:{request.response.status_code if request.response else 'NoResponse'}")
         
         return res
-                
-            
-        
-
-# class OnlyFansResetIE(OnlyFansBaseIE):
-#     IE_NAME = 'onlyfans:reset'
-#     IE_DESC = 'onlyfans:reset'
-#     _VALID_URL = r"onlyfans:reset"
-
-#     def _real_initialize(self):
-
-#         self.cookies = None
-#         opts = Options()
-#         opts.headless = False            
-#         #prof_id = random.randint(0,5) 
-#         prof_id = 0          
-#         prof_ff = FirefoxProfile(self._FF_PROF[prof_id])
-#         self.driver = webdriver.Firefox(options=opts, firefox_profile=prof_ff)
-#         #self.driver.maximize_window()
-#         time.sleep(2)   
-#         try:
-#             #self.driver.install_addon("/Users/antoniotorres/projects/comic_getter/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
-#             self.driver.uninstall_addon('@VPNetworksLLC')
-#         except Exception as e:
-#             lines = traceback.format_exception(*sys.exc_info())
-#             self.to.screen(f"Error: \n{'!!'.join(lines)}")
     
-#         del self.driver.requests
-#         self.driver.delete_all_cookies()
-#         self.driver.refresh()
-#         self._login(self.driver)
-#         self.driver.quit()
-            
+  
 
 class OnlyFansPostIE(OnlyFansBaseIE):
     IE_NAME = 'onlyfans:post'

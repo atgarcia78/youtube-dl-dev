@@ -18,7 +18,6 @@ import traceback
 import sys
 
 
-import shutil
 import random
 from selenium.webdriver import Firefox
 from selenium.webdriver.firefox.options import Options
@@ -53,11 +52,7 @@ class GayBeegPlaylistPageIE(InfoExtractor):
                                     for el_tag in el.find_elements_by_tag_name("a")
                                         if "//netdna-storage" in el_tag.get_attribute('href')]        
         
-        #for el in el_list:
-        #    self.to_screen(f"{el.get_attribute('textContent')}:{el.get_attribute('innerHTML')}")
-        
 
-        #self.to_screen(f"[worker] entries [{len(entries)}]\n {entries}")
         return entries
     
     def _real_extract(self, url):        
@@ -122,19 +117,14 @@ class GayBeegPlaylistIE(InfoExtractor):
                                     for el_tag in el.find_elements_by_tag_name("a")
                                         if "//netdna-storage" in el_tag.get_attribute('href')]        
         
-        #for el in el_list:
-        #    self.to_screen(f"{el.get_attribute('textContent')}:{el.get_attribute('innerHTML')}")
-        
 
-        #self.to_screen(f"[worker] entries [{len(entries)}]\n {entries}")
         if entries:
             for entry in entries:
                 if entry.get('id'): self.queue_entries.put(entry)
         return(entries)
         
     
-    def _worker_pl(self, i):
-        
+    def _worker_pl(self, i):        
                
         prof_id = (i+1)//7 + (i+1)%7 - 1
         prof_ff = FirefoxProfile(self._FF_PROF[prof_id])  
