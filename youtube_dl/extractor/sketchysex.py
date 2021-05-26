@@ -8,11 +8,7 @@ import urllib.parse
 
 from .common import InfoExtractor
 from ..utils import (
-    HEADRequest, multipart_encode,
     ExtractorError,
-    clean_html,
-    get_element_by_class,
-    std_headers,
     sanitize_filename
 )
 
@@ -84,9 +80,9 @@ class SketchySexBaseIE(InfoExtractor):
         
         self.wait_until_not(driver, 60, ec.title_is(_title))
         
-        _title = driver.title.lower()
+        _title = driver.title.upper()
         #self.to_screen(_title)
-        if "warning" in _title:
+        if "WARNING" in _title:
             self.to_screen("Adult consent")
             el_enter = self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "enter-btn")))['el']
             if el_enter: el_enter.click()
@@ -126,8 +122,8 @@ class SketchySexBaseIE(InfoExtractor):
                 raise ExtractorError("Login failed")
            
             
-    def _logout(self):
-        httpx.get(self._LOGOUT_URL)
+    def _logout(self, driver):
+        driver.get(self._LOGOUT_URL)
 
     def _extract_from_page(self, driver, url):
         
@@ -197,7 +193,7 @@ class SketchySexBaseIE(InfoExtractor):
             })
             
     
-    def _extract_list(self, driver, playlistid):
+    def _extract_list(self, driver, playlistid, nextpages):
         
         
         _title = driver.title 
@@ -234,17 +230,14 @@ class SketchySexBaseIE(InfoExtractor):
                 entries.append(self.url_result(el_tag.get_attribute("href"), ie=SketchySexIE.ie_key(), video_title=_title))      
 
             _content = driver.page_source
+            
+            if not nextpages: break
             if "NEXT" in _content:
                 i += 1
             else:
                 break
             
-        return entries
-        
-    
-    def __del__(self):
-        self._logout()
-       
+        return entries        
 
 
 
@@ -314,7 +307,7 @@ class SketchySexIE(SketchySexBaseIE):
         else:
             return(data)
 
-class SketchySexPlayListIE(SketchySexBaseIE):
+class SketchySexOnePagePlayListIE(SketchySexBaseIE):
     IE_NAME = 'sketchysex:playlist'
     IE_DESC = 'sketchysex:playlist'
     _VALID_URL = r"https?://(?:www\.)?sketchysex\.com/episodes/(?P<id>\d+)"
@@ -336,10 +329,37 @@ class SketchySexPlayListIE(SketchySexBaseIE):
         driver.maximize_window()
         driver.refresh()
 
-        entries = self._extract_list(driver, playlistid)  
+        entries = self._extract_list(driver, playlistid, nextpages=False)  
         driver.quit()
         
-        return self.playlist_result(entries, f"sketchysex_Ep:{playlistid}", f"sketchysex_Ep:{playlistid}")
+        return self.playlist_result(entries, f"sketchysex:page_{playlistid}", f"sketchysex:page_{playlistid}")
+    
+class SketchySexAllPagesPlayListIE(SketchySexBaseIE):
+    IE_NAME = 'sketchysex:allpagesplaylist'
+    IE_DESC = 'sketchysex:allpagesplaylist'
+    _VALID_URL = r"https?://(?:www\.)?sketchysex\.com/episodes/?$"
+   
+ 
+    def _real_extract(self, url):
+
+        
+        prof_id = 6
+        prof_ff = FirefoxProfile(self._FF_PROF[prof_id])
+        opts = Options()
+        opts.headless = True
+        opts.add_argument('--no-sandbox')
+        opts.add_argument('--ignore-certificate-errors-spki-list')
+        opts.add_argument('--ignore-ssl-errors') 
+        driver = Firefox(options=opts, firefox_profile=prof_ff)
+        #driver.delete_all_cookies()
+        driver.install_addon("/Users/antoniotorres/projects/comic_getter/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
+        driver.maximize_window()
+        driver.refresh()
+
+        entries = self._extract_list(driver, 1, nextpages=True)  
+        driver.quit()
+        
+        return self.playlist_result(entries, f"sketchysex:AllPages", f"sketchysex:AllPages")
 
 
         

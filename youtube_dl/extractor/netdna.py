@@ -5,11 +5,9 @@ import re
 
 from .common import InfoExtractor
 from ..utils import (
-    ExtractorError,
-    HEADRequest,
+    ExtractorError, 
     int_or_none,
-    sanitize_filename,
-    std_headers
+    sanitize_filename
 )
 
 import hashlib
@@ -24,10 +22,8 @@ from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
-from selenium.common.exceptions import TimeoutException
 import time
 import httpx
-import json
 import threading
 
 

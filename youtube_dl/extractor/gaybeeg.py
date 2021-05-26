@@ -38,28 +38,43 @@ import logging
 logger = logging.getLogger("gaybeeg")
 
 
-class GayBeegPlaylistPageIE(InfoExtractor):
-    IE_NAME = "gaybeeg:playlistpage"
-    _VALID_URL = r'https?://(www\.)?gaybeeg\.info.*/page/.*'
+
+class GayBeegBaseIE(InfoExtractor):
+    
     _FF_PROF = [        
             "/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy"
         ]
     
     
-    def _get_entries(self, el_list):
+    
+    def _get_entries_netdna(self, el_list):
         entries = [{'_type' : 'url', 'url' : el_tag.get_attribute('href'), 'ie' : 'NetDNA', 'title': (info_video:=NetDNAIE.get_video_info(el_tag.get_attribute('href'))).get('title'), 'id' : info_video.get('id'), 'size': info_video.get('filesize')}
                         for el in el_list
                                     for el_tag in el.find_elements_by_tag_name("a")
-                                        if "//netdna-storage" in el_tag.get_attribute('href')]        
-        
-
+                                        if "//netdna-storage" in el_tag.get_attribute('href')] 
+                                    
         return entries
+    
+   
+    def _get_entries_gaybeeg(self, el_list):
+        entries = [{'_type' : 'url', 'url' : _url, 'ie' : 'GayBeeg'}
+                        for el in el_list
+                                    for el_tagh2 in el.find_elements_by_tag_name("h2")
+                                        for el_taga in el_tagh2.find_elements_by_tag_name("a")
+                                            if "//gaybeeg.info" in (_url:=el_taga.get_attribute('href'))]    
+        return entries
+
+class GayBeegPlaylistPageIE(GayBeegBaseIE):
+    IE_NAME = "gaybeeg:onepageplaylist"
+    _VALID_URL = r'https?://(www\.)?gaybeeg\.info.*/page/.*'
+    
+        
     
     def _real_extract(self, url):        
         
         try:
             prof_id = random.randint(0,5)
-            prof_ff = FirefoxProfile(self._FF_PROF[prof_id])
+            prof_ff = FirefoxProfile(GayBeegBaseIE._FF_PROF[prof_id])
             opts = Options()
             opts.headless = True 
             opts.add_argument('--no-sandbox')
@@ -86,7 +101,7 @@ class GayBeegPlaylistPageIE(InfoExtractor):
             el_list = WebDriverWait(driver, 120).until(ec.presence_of_all_elements_located((By.CLASS_NAME, "hentry-large")))
             #self.to_screen(f"{[el.text for el in el_list]}")
             if el_list:                
-                entries_final = self._get_entries(el_list)         
+                entries_final = self._get_entries_netdna(el_list)         
             
             driver.quit()   
             
@@ -103,31 +118,17 @@ class GayBeegPlaylistPageIE(InfoExtractor):
             'entries': entries_final
         } 
     
-class GayBeegPlaylistIE(InfoExtractor):
-    IE_NAME = "gaybeeg:playlist"
+class GayBeegPlaylistIE(GayBeegBaseIE):
+    IE_NAME = "gaybeeg:allpagesplaylist"
     _VALID_URL = r'https?://(www\.)?gaybeeg\.info/(?:site|pornstar)/[^/$]+/?$'
-    _FF_PROF = [        
-            "/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy"
-        ]
-    
-    
-    def _get_entries(self, el_list):
-        entries = [{'_type' : 'url', 'url' : el_tag.get_attribute('href'), 'ie' : 'NetDNA', 'title': (info_video:=NetDNAIE.get_video_info(el_tag.get_attribute('href'))).get('title'), 'id' : info_video.get('id'), 'filesize': info_video.get('filesize')}
-                        for el in el_list
-                                    for el_tag in el.find_elements_by_tag_name("a")
-                                        if "//netdna-storage" in el_tag.get_attribute('href')]        
-        
 
-        if entries:
-            for entry in entries:
-                if entry.get('id'): self.queue_entries.put(entry)
-        return(entries)
-        
     
+    
+        
     def _worker_pl(self, i):        
                
         prof_id = (i+1)//7 + (i+1)%7 - 1
-        prof_ff = FirefoxProfile(self._FF_PROF[prof_id])  
+        prof_ff = FirefoxProfile(GayBeegBaseIE._FF_PROF[prof_id])  
         opts = Options()
         opts.headless = True         
         opts.add_argument('--no-sandbox')
@@ -182,7 +183,10 @@ class GayBeegPlaylistIE(InfoExtractor):
                         el_list = WebDriverWait(driver, 120).until(ec.presence_of_all_elements_located((By.CLASS_NAME, "hentry-large")))
                         if el_list:
                            
-                            _entries = self._get_entries(el_list)
+                            _entries = self._get_entries_netdna(el_list)
+                            if _entries:
+                                for entry in _entries:
+                                    if entry.get('id'): self.queue_entries.put(entry)
                             self.to_screen(f"[worker_pl{i}]: entries [{len(_entries)}]\n {_entries}")
 
                         else:
@@ -215,7 +219,7 @@ class GayBeegPlaylistIE(InfoExtractor):
         
         try:
             prof_id = random.randint(0,5)
-            prof_ff = FirefoxProfile(self._FF_PROF[prof_id])
+            prof_ff = FirefoxProfile(GayBeegBaseIE._FF_PROF[prof_id])
             opts = Options()
             opts.headless = True
             opts.add_argument('--no-sandbox')
@@ -244,7 +248,10 @@ class GayBeegPlaylistIE(InfoExtractor):
             #self.to_screen(f"{[el.text for el in el_list]}")
             if el_list:
                 
-                self._get_entries(el_list)
+                _entries = self._get_entries_netdna(el_list)
+                if _entries:
+                    for entry in _entries:
+                        if entry.get('id'): self.queue_entries.put(entry)
             
             el_pagination = driver.find_elements_by_class_name("pagination")
             
@@ -266,7 +273,10 @@ class GayBeegPlaylistIE(InfoExtractor):
                     el_list = WebDriverWait(driver, 120).until(ec.presence_of_all_elements_located((By.CLASS_NAME, "hentry-large")))
                     #self.to_screen([el.text for el in el_list])
                     if el_list:
-                        _entries = self._get_entries(el_list)
+                        _entries = self._get_entries_netdna(el_list)
+                        if _entries:
+                            for entry in _entries:
+                                if entry.get('id'): self.queue_entries.put(entry)
                         self.to_screen(f"[worker_pl_main]: entries [{len(_entries)}]\n {_entries}")
                     driver.quit()
                 elif n_pages > 2:    
@@ -313,22 +323,12 @@ class GayBeegPlaylistIE(InfoExtractor):
         }       
         
         
-class GayBeegIE(InfoExtractor):
+class GayBeegIE(GayBeegBaseIE):
     IE_NAME = "gaybeeg:post"
     _VALID_URL = r'https?://(www\.)?gaybeeg\.info/\d\d\d\d/\d\d/\d\d/.*'
-    _FF_PROF = [        
-            "/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy"
-        ]        
-
-    def _get_entries(self, el_list):
-        entries = [{'_type' : 'url', 'url' : el_tag.get_attribute('href'), 'ie' : 'NetDNA', 'title': (info_video:=NetDNAIE.get_video_info(el_tag.get_attribute('href'))).get('title'), 'id' : info_video.get('id'), 'filesize': info_video.get('filesize')}
-                        for el in el_list
-                                    for el_tag in el.find_elements_by_tag_name("a")
-                                        if "//netdna-storage" in el_tag.get_attribute('href')] 
-        return(entries)
     
- 
-        
+
+            
     def _real_extract(self, url):        
         
         try:
@@ -339,7 +339,7 @@ class GayBeegIE(InfoExtractor):
             opts.add_argument('--no-sandbox')
             opts.add_argument('--ignore-certificate-errors-spki-list')
             opts.add_argument('--ignore-ssl-errors')  
-            prof_ff = FirefoxProfile(self._FF_PROF[prof_id])            
+            prof_ff = FirefoxProfile(GayBeegBaseIE._FF_PROF[prof_id])            
             driver = None            
             driver = Firefox(options=opts, firefox_profile=prof_ff)
             driver.maximize_window()
@@ -360,7 +360,7 @@ class GayBeegIE(InfoExtractor):
             el_list = WebDriverWait(driver, 120).until(ec.presence_of_all_elements_located((By.CLASS_NAME, "hentry-large")))
             
             if el_list:
-                    entries = self._get_entries(el_list)
+                    entries = self._get_entries_netdna(el_list)
             driver.quit()
             
         except Exception as e:

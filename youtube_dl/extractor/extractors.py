@@ -420,8 +420,9 @@ from .francetv import (
     CultureboxIE,
 )
 from .fraternityx import (
-    FraternityXIE,
-    FraternityXPlayListIE,
+    FraternityXIE,    
+    FraternityxOnePagePlayListIE,
+    FraternityxAllPagesPlayListIE
     
 )
 from .freesound import FreesoundIE
@@ -1135,7 +1136,8 @@ from .sixplay import SixPlayIE
 from .sketboy import SketBoyIE
 from .sketchysex import (
     SketchySexIE,
-    SketchySexPlayListIE,
+    SketchySexOnePagePlayListIE,
+    SketchySexAllPagesPlayListIE,
 )
 from .skyit import (
     SkyItPlayerIE,
@@ -1433,6 +1435,7 @@ from .ufctv import (
     UFCTVIE,
     UFCArabiaIE,
 )
+from .userload import UserLoadIE
 from .uktvplay import UKTVPlayIE
 from .digiteka import DigitekaIE
 from .dlive import (

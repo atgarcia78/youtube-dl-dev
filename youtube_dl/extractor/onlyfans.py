@@ -70,7 +70,7 @@ class succ_or_twrelogin():
         
         el = driver.find_elements_by_css_selector("nav.l-header__menu")        
         if el:            
-            return (el[0])       
+            return (el[0],)       
         else:
 
             el_username = driver.find_elements_by_partial_link_text("usuario")
@@ -131,7 +131,7 @@ class OnlyFansBaseIE(InfoExtractor):
                     
                     if link in request.url:
                         if request.response:
-                            self.to_screen(f"{request.method}:{request.url}:{request.response.status_code}")
+                            self.to_screen(f"Found [{link}] - {request.method}:{request.url}:{request.response.status_code}")
                             data_post = json.loads(request.response.body.decode())
                             return data_post
                         #return self._extract_from_json(data_post, user_profile=account)      
@@ -381,10 +381,10 @@ class OnlyFansPostIE(OnlyFansBaseIE):
         prof_ff = FirefoxProfile(self._FF_PROF[prof_id])
         self.driver = webdriver.Firefox(options=opts, firefox_profile=prof_ff)
         time.sleep(2)   
-        try:           
+        try:          
 
             self.driver.uninstall_addon('@VPNetworksLLC')
-            #self.driver.install_addon("/Users/antoniotorres/Projects/common/addons/fire_clear_cache-1.0.0/web-ext-artifacts/fire_clear_cache-1.0.0.zip", temporary=True)
+            
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
             self.to.screen(f"Error: \n{'!!'.join(lines)}")
@@ -392,12 +392,6 @@ class OnlyFansPostIE(OnlyFansBaseIE):
         del self.driver.requests
         self.print_requests(self.driver)
         
-        #action = ActionChains(self.driver)
-  
-        # perform the oepration
-        #action.send_keys('F9').perform()
-        
-        #time.sleep(5)
         
         self.driver.get(self._SITE_URL)
         self.wait_until(self.driver, 60, ec.presence_of_element_located(
@@ -454,8 +448,8 @@ class OnlyFansPostIE(OnlyFansBaseIE):
 class OnlyFansPlaylistIE(OnlyFansBaseIE):
     IE_NAME = 'onlyfans:playlist'
     IE_DESC = 'onlyfans:playlist'
-    _VALID_URL = r"(?:(onlyfans:account:(?P<account>[^:]+)(?:(:(?P<mode>(?:date|favs|tips|latest10)))?))|(https?://(?:www\.)?onlyfans.com/(?P<account2>\w+)(?:(/(?P<mode2>(?:date|favs|tips|latest10)))?)$))"
-    _MODE_DICT = {"favs" : "favorites_count_desc", "tips" : "tips_summ_desc", "date" : "publish_date_desc", "latest10" : "publish_date_desc"}
+    _VALID_URL = r"(?:(onlyfans:account:(?P<account>[^:]+)(?:(:(?P<mode>(?:all|favs|tips|latest10)))?))|(https?://(?:www\.)?onlyfans.com/(?P<account2>\w+)(?:(/(?P<mode2>(?:all|favs|tips|latest10)))?)$))"
+    _MODE_DICT = {"favs" : "favorites_count_desc", "tips" : "tips_summ_desc", "all" : "publish_date_desc", "latest10" : "publish_date_desc"}
     
     
     driver = None       
@@ -473,23 +467,16 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
         
         #self.driver.maximize_window()
         time.sleep(2)   
-        try:           
+        try:          
 
             self.driver.uninstall_addon('@VPNetworksLLC')
-            #self.driver.install_addon("/Users/antoniotorres/Projects/common/addons/fire_clear_cache-1.0.0/web-ext-artifacts/fire_clear_cache-1.0.0.zip", temporary=True)
+
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
             self.to.screen(f"Error: \n{'!!'.join(lines)}")
     
         del self.driver.requests
         self.print_requests(self.driver)
-        
-        #action = ActionChains(self.driver)
-  
-        # perform the oepration
-        #action.send_keys('F9').perform()
-        
-        #time.sleep(5)
         
         self.driver.get(self._SITE_URL)
         self.wait_until(self.driver, 60, ec.presence_of_element_located(
@@ -530,7 +517,7 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                     entries = [self._extract_from_json(info_json, user_profile=account) for info_json in list_json]
                 
 
-            elif mode in ("date"):
+            elif mode in ("all"):
 
             
                 SCROLL_PAUSE_TIME = 2
@@ -600,32 +587,20 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
         #prof_id = random.randint(0,5) 
         prof_id = 0         
         prof_ff = FirefoxProfile(self._FF_PROF[prof_id])
-        #prof_ff.accept_untrusted_certs = True
-        #prof_ff.update_preferences()
-        # prof_ff.assume_untrusted_cert_issuer = True
         opts.add_argument('--no-sandbox')
         opts.add_argument('--ignore-certificate-errors-spki-list')
         opts.add_argument('--ignore-ssl-errors') 
         self.driver = webdriver.Firefox(options=opts, firefox_profile=prof_ff)
         time.sleep(2)   
-        try:           
-
+        try:  
             self.driver.uninstall_addon('@VPNetworksLLC')
-            #self.driver.install_addon("/Users/antoniotorres/Projects/common/addons/fire_clear_cache-1.0.0/web-ext-artifacts/fire_clear_cache-1.0.0.zip", temporary=True)
+
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
             self.to.screen(f"Error: \n{'!!'.join(lines)}")
     
         del self.driver.requests
         self.print_requests(self.driver)
-        
-        #action = ActionChains(self.driver)
-  
-        # perform the oepration
-        #action.send_keys('F9').perform()
-        
-        #time.sleep(5)
-       
         
         self.driver.get(self._SITE_URL)
         self.wait_until(self.driver, 60, ec.presence_of_element_located(
@@ -634,9 +609,7 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
         self.driver.execute_script("window.localStorage.clear();")        
         #time.sleep(5)        
         self._login(self.driver)
-
         
-                    
 
     def _real_extract(self, url):
  

@@ -2,8 +2,8 @@ from __future__ import unicode_literals
 
 
 import re
+from tarfile import ExtractError
 from .common import InfoExtractor
-from .streamtape import StreamtapeIE
 from ..utils import (
     urlencode_postdata,
     HEADRequest,
@@ -93,8 +93,18 @@ class MyVidsterIE(MyVidsterBaseIE):
 
         title = self._og_search_title(webpage)
 
-        real_url = self._html_search_regex(r'rel="videolink" href="(?P<real_url>.*)">',
+        
+        real_url = None
+        
+        reload_url = re.findall(r"onClick=\"reload_video\(\'([^\']*)\'", webpage)
+        if reload_url:
+            real_url = reload_url[0]
+        else:
+            real_url = self._html_search_regex(r'rel="videolink" href="(?P<real_url>.*)">',
             webpage, 'real_url')
+            
+        if not real_url:
+            raise ExtractError("Can't find real URL")
 
         #self.to_screen(f"{real_url}")   
 

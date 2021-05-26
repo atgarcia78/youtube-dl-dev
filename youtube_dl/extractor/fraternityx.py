@@ -8,11 +8,7 @@ import urllib.parse
 
 from .common import InfoExtractor
 from ..utils import (
-    HEADRequest, multipart_encode,
     ExtractorError,
-    clean_html,
-    get_element_by_class,
-    std_headers,
     sanitize_filename
 )
 
@@ -40,9 +36,6 @@ class FraternityXBaseIE(InfoExtractor):
     _FF_PROF = [        
             "/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy", "/Users/antoniotorres/Library/Application Support/Firefox/Profiles/f7zfxja0.selenium_noproxy"
         ]
-
-    
-
 
     def wait_until(self, driver, time, method):
         
@@ -102,8 +95,8 @@ class FraternityXBaseIE(InfoExtractor):
             _title = driver.title
             el_login.click()
             self.wait_until_not(driver, 30, ec.title_is(_title))
-            _title = driver.title.lower()
-            if "denied" in _title:
+            _title = driver.title.upper()
+            if "DENIED" in _title:
                 self.to_screen("Abort existent session")
                 el_abort = driver.find_element_by_css_selector("button")
                 el_abort.click()
@@ -113,8 +106,8 @@ class FraternityXBaseIE(InfoExtractor):
                 raise ExtractorError("Login failed")
            
             
-    def _logout(self):
-        httpx.get(self._LOGOUT_URL)
+    def _logout(self, driver):
+        driver.get(self._LOGOUT_URL)
 
     def _extract_from_page(self, driver, url):
         
@@ -184,7 +177,7 @@ class FraternityXBaseIE(InfoExtractor):
             })
             
     
-    def _extract_list(self, driver, playlistid):
+    def _extract_list(self, driver, playlistid, nextpages):
         
         
         _title = driver.title 
@@ -223,16 +216,16 @@ class FraternityXBaseIE(InfoExtractor):
                 entries.append(self.url_result(el_tag.get_attribute("href"), ie=FraternityXIE.ie_key(), video_title=_title))      
 
             _content = driver.page_source
+            
+            if not nextpages: break
             if "NEXT" in _content:
                 i += 1
             else:
                 break
             
         return entries
-        
-    
-    def __del__(self):
-        self._logout()
+         
+   
        
 
 
@@ -272,7 +265,7 @@ class FraternityXIE(FraternityXBaseIE):
                 
                 FraternityXIE._COOKIES = driver.get_cookies()
                 driver.quit()
-                self.to_screen(FraternityXIE._COOKIES)
+                #self.to_screen(FraternityXIE._COOKIES)
         
 
     def _real_extract(self, url):
@@ -304,9 +297,9 @@ class FraternityXIE(FraternityXBaseIE):
         else:
             return(data)
 
-class FraternityXPlayListIE(FraternityXBaseIE):
-    IE_NAME = 'fraternityx:playlist'
-    IE_DESC = 'fraternityx:playlist'
+class FraternityxOnePagePlayListIE(FraternityXBaseIE):
+    IE_NAME = 'fraternityx:onepageplaylist'
+    IE_DESC = 'fraternityx:onepageplaylist'
     _VALID_URL = r"https?://(?:www\.)?fraternityx\.com/episodes/(?P<id>\d+)"
    
  
@@ -326,10 +319,37 @@ class FraternityXPlayListIE(FraternityXBaseIE):
         driver.maximize_window()
         driver.refresh()
 
-        entries = self._extract_list(driver, playlistid)  
+        entries = self._extract_list(driver, playlistid, nextpages=False)  
         driver.quit()
         
-        return self.playlist_result(entries, f"fraternityx_Ep:{playlistid}", f"fraternityx_Ep:{playlistid}")
+        return self.playlist_result(entries, f"fraternityx:page_{playlistid}", f"fraternityx:page_{playlistid}")
+    
+class FraternityxAllPagesPlayListIE(FraternityXBaseIE):
+    IE_NAME = 'fraternityx:allpagesplaylist'
+    IE_DESC = 'fraternityx:allpagesplaylist'
+    _VALID_URL = r"https?://(?:www\.)?fraternityx\.com/episodes/?$"
+   
+ 
+    def _real_extract(self, url):
+
+        
+        prof_id = 6
+        prof_ff = FirefoxProfile(self._FF_PROF[prof_id])
+        opts = Options()
+        opts.headless = True
+        opts.add_argument('--no-sandbox')
+        opts.add_argument('--ignore-certificate-errors-spki-list')
+        opts.add_argument('--ignore-ssl-errors') 
+        driver = Firefox(options=opts, firefox_profile=prof_ff)
+        #driver.delete_all_cookies()
+        driver.install_addon("/Users/antoniotorres/projects/comic_getter/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
+        driver.maximize_window()
+        driver.refresh()
+
+        entries = self._extract_list(driver, 1, nextpages=True)  
+        driver.quit()
+        
+        return self.playlist_result(entries, f"fraternityx:AllPages", f"fraternityx:AllPages")
 
 
         
