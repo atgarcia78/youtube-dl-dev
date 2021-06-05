@@ -65,10 +65,12 @@ class NetDNAIE(InfoExtractor):
                     title = _title_list[0][0].upper().replace("-","_")
                     ext = _title_list[0][1].lower()
             
-            client.close()
+            
         except Exception as e:
-            if client:
-                client.close()        
+            lines = traceback.format_exception(*sys.exc_info())
+            NetDNAIE.to.screen(f"Error: \n{'!!'.join(lines)}")
+        finally:
+            client.close()        
        
         if title and _num and _unit:             
             str_id = f"{title}{_num}"
@@ -92,24 +94,29 @@ class NetDNAIE(InfoExtractor):
     def _get_filesize(self, url):
         
         count = 0
-        cl = httpx.Client()
-        _res = None
-        while (count<1):
-            
-            try:
+        try:
+            cl = httpx.Client()
+            _res = None
+            while (count<1):
                 
-                res = cl.head(url)
-                if res.status_code > 400:
-                    time.sleep(1)
+                try:
+                    
+                    res = cl.head(url)
+                    if res.status_code > 400:
+                        time.sleep(1)
+                        count += 1
+                    else: 
+                        _res = int_or_none(res.headers.get('content-length')) 
+                        break
+            
+                except (httpx.HTTPError, httpx.CloseError, httpx.RemoteProtocolError, httpx.ReadTimeout, 
+                        httpx.ProxyError, AttributeError, RuntimeError) as e:
                     count += 1
-                else: 
-                    _res = int_or_none(res.headers.get('content-length')) 
-                    break
+        except Exception as e:
+            pass
+        finally:
+            cl.close()
         
-            except (httpx.HTTPError, httpx.CloseError, httpx.RemoteProtocolError, httpx.ReadTimeout, 
-                    httpx.ProxyError, AttributeError, RuntimeError) as e:
-                count += 1
-        cl.close()
         return _res   
         
     
@@ -144,6 +151,7 @@ class NetDNAIE(InfoExtractor):
         driver.refresh()  
                 
         try:           
+            entry = None
             _title = driver.title
             driver.get(url)
             time.sleep(1)
@@ -235,19 +243,22 @@ class NetDNAIE(InfoExtractor):
                         'ext' : info_video.get('ext')
                     }
                     
-                    driver.quit()
-                    return(entry)
+                    #driver.quit()
+                    
 
                 except Exception as e:
                     
                     raise
                 
-        except Exception as e:
+        except Exception as e:            
             
-            driver.quit() 
             if isinstance(e, ExtractorError):
                 raise
             else:
-                raise ExtractorError(str(e)) from e                
+                raise ExtractorError(str(e)) from e 
+        finally:
+            driver.quit()  
+            
+        return(entry)              
             
             

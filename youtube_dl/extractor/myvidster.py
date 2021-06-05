@@ -5,24 +5,43 @@ import re
 from tarfile import ExtractError
 from .common import InfoExtractor
 from ..utils import (
+    ExtractorError,
     urlencode_postdata,
     HEADRequest,
     std_headers,
     sanitize_filename
 )
-
+from collections import OrderedDict
+import httpx
+import brotli
 class MyVidsterBaseIE(InfoExtractor):
 
     _LOGIN_URL = "https://www.myvidster.com/user/"
     _SITE_URL = "https://www.myvidster.com"
     _NETRC_MACHINE = "myvidster"
-
-    def _log_in(self):
+    
+    
+    def _headers_ordered(self, extra=None):
+        _headers = OrderedDict()
         
-        self.username, self.password = self._get_login_info()
+        if not extra: extra = dict()
+        
+        for key in ["User-Agent", "Accept", "Accept-Language", "Accept-Encoding", "Content-Type", "X-Requested-With", "Origin", "Connection", "Referer", "Upgrade-Insecure-Requests"]:
+        
+            value = extra.get(key) if extra.get(key) else std_headers.get(key)
+            if value:
+                _headers[key.lower()] = value
+      
+        
+        return _headers
+
+    def _log_in(self, client):
+        
+        username, password = self._get_login_info()
+        self.to_screen(f"{username}:{password}")
 
         self.report_login()
-        if not self.username or not self.password:
+        if not username or not password:
             self.raise_login_required(
                 'A valid %s account is needed to access this media.'
                 % self._NETRC_MACHINE)
@@ -30,29 +49,33 @@ class MyVidsterBaseIE(InfoExtractor):
                
 
         data = {
-            "user_id": self.username,
-            "password": self.password,
+            "user_id": username,
+            "password": password,
             "save_login" : "on",
             "submit" : "Log+In",
             "action" : "log_in"
         }
 
-        login_page, url_handle = self._download_webpage_handle(
-            self._LOGIN_URL,
-            None,
-            note="Logging in",
-            errnote="Login fail",
-            data=urlencode_postdata(data),
-            headers={
+        _headers = self._headers_ordered({"Upgrade-Insecure-Requests": "1"})         
+        _aux = dict()
+        _aux.update({
                 "Referer": self._LOGIN_URL,
                 "Origin": self._SITE_URL,
                 "Content-Type": "application/x-www-form-urlencoded"
-            }
-        )
+            })
+        _headers_post = self._headers_ordered(_aux)
+        
+        client.get(self._LOGIN_URL, headers=_headers)
+        
+        res = client.post(
+                    self._LOGIN_URL,               
+                    data=data,
+                    headers=_headers_post,
+                    timeout=60
+                )
 
-        if not "action=log_out" in login_page:
-            self.raise_login_required(
-                'Log in failed')
+        if res.url != "https://www.myvidster.com/user/home.php":
+            raise ExtractorError("Login failed")
 
 
     def islogged(self):
@@ -63,45 +86,43 @@ class MyVidsterBaseIE(InfoExtractor):
 class MyVidsterIE(MyVidsterBaseIE):
     IE_NAME = 'myvidster'
     _VALID_URL = r'https?://(?:www\.)?myvidster\.com/(?:video|vsearch)/(?P<id>\d+)/?(?:.*|$)'
-
-    _TEST = {
-        'url': 'http://www.myvidster.com/video/32059805/Hot_chemistry_with_raw_love_making',
-        'md5': '95296d0231c1363222c3441af62dc4ca',
-        'info_dict': {
-            'id': '3685814',
-            'title': 'md5:7d8427d6d02c4fbcef50fe269980c749',
-            'upload_date': '20141027',
-            'uploader': 'utkualp',
-            'ext': 'mp4',
-            'age_limit': 18,
-        },
-        'add_ie': ['XHamster'],
-    }
-
-
+    _NETRC_MACHINE = "myvidster"
+    
+    client = None
 
     def _real_initialize(self):
-        if self.islogged():
-            return
-        else:
-            self._log_in()
+        self.client = httpx.Client()   
+                       
+        self._log_in(self.client)
 
     def _real_extract(self, url):
         video_id = self._match_id(url)
         url = url.replace("vsearch", "video")
-        webpage = self._download_webpage(url, video_id)
+        _headers = self._headers_ordered({"Upgrade-Insecure-Requests": "1"}) 
+        res = self.client.get(url,headers=_headers)
+        self.to_screen(f"{res.headers}:{res.request.headers}")
+        if res.headers.get("content-encoding") == "br":
+            webpage = (brotli.decompress(res.content)).decode("UTF-8")
+        else: webpage = res.text
 
-        title = self._og_search_title(webpage)
+        res = re.findall(r"title>([^<]+)<", webpage)
+       
+        #self.to_screen(f"{webpage}")
+        if res:
+            title = res[0]
+        else: title = url.split("/")[-1]
 
-        
+        title = sanitize_filename(title, restricted=True)
+                
         real_url = None
         
-        reload_url = re.findall(r"onClick=\"reload_video\(\'([^\']*)\'", webpage)
-        if reload_url:
-            real_url = reload_url[0]
+        res = re.findall(r"onClick=\"reload_video\(\'([^\']*)\'", webpage.replace(" ",""))
+        if res:
+            real_url = res[0]
         else:
-            real_url = self._html_search_regex(r'rel="videolink" href="(?P<real_url>.*)">',
-            webpage, 'real_url')
+            res = re.findall(r'rel=\"videolink\"href\=\"([^\"]+)\"', webpage.replace(" ",""))
+            if res:
+                real_url = res[0]
             
         if not real_url:
             raise ExtractError("Can't find real URL")

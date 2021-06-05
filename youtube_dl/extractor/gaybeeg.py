@@ -103,13 +103,15 @@ class GayBeegPlaylistPageIE(GayBeegBaseIE):
             if el_list:                
                 entries_final = self._get_entries_netdna(el_list)         
             
-            driver.quit()   
+            #driver.quit()   
             
         except Exception as e:
             self.to_screen(str(e))
             logger.error(str(e), exc_info=True)
-            if driver: 
-                driver.quit()        
+            #if driver: 
+            #    driver.quit()
+        finally:
+            driver.quit()        
         
         return {
             '_type': "playlist",
@@ -140,10 +142,15 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
             driver = None
             driver = Firefox(options=opts, firefox_profile=prof_ff)
             #driver.install_addon("/Users/antoniotorres/projects/comic_getter/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
-            driver.uninstall_addon('@VPNetworksLLC')
-            driver.refresh()
             driver.maximize_window()
-            time.sleep(5)
+            time.sleep(5)            
+            try:
+                driver.uninstall_addon('@VPNetworksLLC')
+            except Exception as e:
+                lines = traceback.format_exception(*sys.exc_info())
+                self.to.screen(f"Error: \n{'!!'.join(lines)}")
+            
+            driver.refresh()
             
             
             while not self.queue_in.empty():
@@ -156,7 +163,7 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
                     self.completed += 1
                     self.to_screen(f"[worker_pl{i}] bye bye, completed {self.completed}")
                     #driver.close()
-                    driver.quit()                    
+                    #driver.quit()                    
                     break
                 elif url_p == "KILLANDCLEAN":
                     while(self.completed < self.workers - 1):
@@ -172,7 +179,7 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
                     else:
                         self.to_screen(f"[worker_pl{i}] no need to retry pending pages") 
                         #driver.close()
-                        driver.quit()
+                        #driver.quit()
                         break
                         
                 else:
@@ -198,9 +205,11 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
         except Exception as e:
             self.to_screen(f"[worker_pl{i}] {e}")
             logger.error(str(e), exc_info=True)
-            if driver:
+            #if driver:
                 #driver.close()
-                driver.quit()
+                #driver.quit()
+        finally:
+            driver.quit()
         
             
                 
@@ -262,7 +271,7 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
                     n_pages = int(_n_pages.group("n_pages"))
                 else:
                     n_pages = 0
-                    driver.quit()
+                    #driver.quit()
                 #driver.close()
                 #driver.quit()
                 if not url.endswith("/"): url = f"{url}/"
@@ -278,9 +287,9 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
                             for entry in _entries:
                                 if entry.get('id'): self.queue_entries.put(entry)
                         self.to_screen(f"[worker_pl_main]: entries [{len(_entries)}]\n {_entries}")
-                    driver.quit()
+                    #driver.quit()
                 elif n_pages > 2:    
-                    driver.quit()
+                    #driver.quit()
                     for num in range(2,n_pages+1):                    
                         self.queue_in.put({'url': f"{url}page/{num}", 'page': num})
                                                 
@@ -302,18 +311,20 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
                         
                         #wait(futures,return_when=ALL_COMPLETED)
 
-            else:
+            # else:
                 
-                driver.quit()
+            #     driver.quit()
                     
             entries_final = list(self.queue_entries.queue)   
             
         except Exception as e:
             self.to_screen(str(e))
             logger.error(str(e), exc_info=True)
-            if driver:
+            # if driver:
                 
-                driver.quit()        
+            #     driver.quit()
+        finally:
+            driver.quit()        
         
         return {
             '_type': "playlist",
@@ -361,12 +372,14 @@ class GayBeegIE(GayBeegBaseIE):
             
             if el_list:
                     entries = self._get_entries_netdna(el_list)
-            driver.quit()
+            #driver.quit()
             
         except Exception as e:
             logger.error(str(e), exc_info=True)
-            if driver:
-                driver.quit()
+            # if driver:
+            #     driver.quit()
+        finally:
+            driver.quit()
             
         if not entries:
                 raise ExtractorError(f'no video info: {str(e)}')

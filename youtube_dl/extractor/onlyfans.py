@@ -1,7 +1,7 @@
 from __future__ import unicode_literals
 
 import json
-import requests
+
 
 from .common import InfoExtractor
 from ..utils import (
@@ -12,8 +12,6 @@ from ..utils import (
 
 import re
 import time
-import hashlib
-import random
 import httpx
 
 from seleniumwire import webdriver
@@ -32,11 +30,6 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.keys import Keys
 
 
-from urllib.parse import urlparse
-
-from pathlib import Path
-
-from rclone import RClone
 import sys
 import traceback
 
@@ -138,7 +131,19 @@ class OnlyFansBaseIE(InfoExtractor):
                    
             count -= 1
             time.sleep(1)
-   
+            
+    def _logout(self, driver):
+        driver.get(self._SITE_URL)
+        time.sleep(2)          
+        push_el = self.wait_until(driver, 30, ec.presence_of_element_located(
+                 (By.CSS_SELECTOR, "button.l-header__menu__item.m-size-lg-hover.m-with-round-hover.m-width-fluid-hover") ))
+        
+        if push_el: push_el.click()
+        
+        log_out = self.wait_until(driver, 30, ec.presence_of_element_located(
+                 (By.CSS_SELECTOR, "button.l-sidebar__menu__item") ))
+        
+        if log_out: log_out.click()
     
     def _login(self, driver):
 
@@ -441,6 +446,8 @@ class OnlyFansPostIE(OnlyFansBaseIE):
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f'{type(e)} \n{"!!".join(lines)}')
             
+        #self._logout(self.driver)
+        #time.sleep(10)
         self.driver.quit()
         return info_video
                                                        
