@@ -1,29 +1,26 @@
 # coding: utf-8
 
 from __future__ import unicode_literals
-from logging import info
-from os import CLD_CONTINUED
 
 import re
 
 from .common import InfoExtractor
 from ..utils import (
-    ExtractorError, NO_DEFAULT, urlencode_postdata,
+    ExtractorError,
     sanitize_filename,
     std_headers
 )
 
-
-
 from threading import Lock
+import traceback
+import sys
 
 import httpx
 import time
-import json
-
 
 from collections import OrderedDict
 
+from concurrent.futures import ThreadPoolExecutor
 class NakedSwordBaseIE(InfoExtractor):
     IE_NAME = 'nakedsword'
     IE_DESC = 'nakedsword'
@@ -74,14 +71,13 @@ class NakedSwordBaseIE(InfoExtractor):
         }
         
         
-
-
-        count = 0
         
         _headers = self._headers_ordered({"Upgrade-Insecure-Requests": "1"})         
         _aux = dict()
         _aux.update({"Referer": self._LOGIN_URL,"Origin": "https://nakedsword.com","Content-Type": "application/x-www-form-urlencoded", "Upgrade-Insecure-Requests": "1"})
         _headers_post = self._headers_ordered(_aux)
+        
+        count = 0
         while (count < 5):
         
             try:
@@ -125,14 +121,46 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
     _COOKIES = {}
     
     @staticmethod
-    def _get_info(url):
+    def _get_info(url, _res=None):
         
-        page = httpx.get(url)
-        res = re.findall(r"class=\'MiMovieTitle\'[^\>]*\>([^\<]*)<[^\>]*>[^\w]+(Scene[^\<]*)\<",page.text)
-        res2 = re.findall(r"\'SCENEID\'content\=\'([^\']+)\'", page.text.replace(" ",""))
-        if res and res2:
-            return({'id': res2[0], 'title': sanitize_filename(f'{res[0][0]}_{res[0][1].lower().replace(" ","_")}', restricted=True)})
-   
+        
+        if not _res:
+            count = 0
+            while count < 3:
+                try:
+                    _res = httpx.get(url)
+                    if _res.status_code < 400:         
+                        res = re.findall(r"class=\'M(?:i|y)MovieTitle\'[^\>]*\>([^\<]*)<[^\>]*>[^\w]+(Scene[^\<]*)\<", _res.text)
+                        res2 = re.findall(r"\'SCENEID\'content\=\'([^\']+)\'", _res.text.replace(" ",""))
+                        if res and res2: break
+                        else: count += 1
+                        
+                    else: count += 1
+                except Exception as e:
+                    count += 1 
+        else:
+            
+            res = re.findall(r"class=\'M(?:i|y)MovieTitle\'[^\>]*\>([^\<]*)<[^\>]*>[^\w]+(Scene[^\<]*)\<", _res.text)
+            res2 = re.findall(r"\'SCENEID\'content\=\'([^\']+)\'", _res.text.replace(" ",""))
+            if res and res2: count = 0
+            else: count = 3
+                           
+        
+        return({'id': res2[0], 'title': sanitize_filename(f'{res[0][0]}_{res[0][1].lower().replace(" ","_")}', restricted=True)} if count < 3 else None)
+    
+    def _get_url(self, client, url, headers):
+        count = 0
+        while count < 3:
+            try:
+                _res = client.get(url, headers=headers)
+                if _res.status_code < 400: break
+                else: count += 1
+            except Exception as e:
+                count += 1
+        return(_res if count < 3 else None)
+        
+        
+    
     
     def _real_initialize(self):
         with NakedSwordSceneIE._LOCK:
@@ -150,8 +178,62 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
                     client.close()
                 
             
+    def _get_formats(self, client, url, stream_url, _type):
+        
+        _headers_json = self._headers_ordered({"Referer": url, "X-Requested-With": "XMLHttpRequest",  "Content-Type" : "application/json",
+                                                "Accept": "application/json, text/javascript, */*; q=0.01"})
+        _headers_mpd = self._headers_ordered({"Accept": "*/*", "Origin": "https://nakedsword.com", "Referer": self._SITE_URL})
+        
+        try:
+                    
+            res = self._get_url(client, stream_url, _headers_json)
+            if not res or not res.content: raise ExtractorError("Cant get stream url info")
+            #self.to_screen(f"{res.request} - {res} - {res.request.headers} - {res.headers} - {res.content}")
+            info_json = res.json()
+            if not info_json: raise ExtractorError("Can't get json")                                                     
+        except Exception as e:
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to_screen(f"{type(e)}: {str(e)}\n{'!!'.join(lines)}")
+            raise ExtractorError(f"Cant get json info - {str(e)}")
+            
+        
+                
+        self.to_screen(info_json)
+        mpd_url = info_json.get("StreamUrl") 
+        if not mpd_url: raise ExtractorError("Can't find url mpd")    
+        #self.to_screen(mpd_url) 
+        NakedSwordSceneIE._COOKIES = client.cookies      
+        
+        try:
+            res = self._get_url(client, mpd_url, _headers_mpd)
+            #self.to_screen(f"{res.request} - {res} - {res.headers} - {res.request.headers} - {res.content}")
+            if not res or not res.content: raise ExtractorError("Cant get mpd info")
+            
+            mpd_doc = (res.content).decode('utf-8', 'replace')
+            if _type == "dash":
+                mpd_doc = self._parse_xml(mpd_doc, None)
+            #self.to_screen(mpd_doc)
+            if not mpd_doc: raise ExtractorError("Cant get mpd doc") 
+                
+            if _type == "m3u8":
+                formats = self._parse_m3u8_formats(mpd_doc, mpd_url, ext="mp4", entry_protocol="m3u8_native", m3u8_id="hls")
+            elif _type == "dash":
+                formats = self._parse_mpd_formats(mpd_doc, mpd_id="dash", mpd_url=mpd_url, mpd_base_url=(mpd_url.rsplit('/', 1))[0])
+                
+            if not formats: raise ExtractorError("Cant get formats") 
+            
+        except Exception as e:
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to_screen(f"{type(e)}: {str(e)}\n{'!!'.join(lines)}")
+            raise ExtractorError(f"Cant get formats {_type} - {str(e)}") 
+            
+               
+        
+        return formats               
+                
 
 
+    
     def _real_extract(self, url):
 
         try:
@@ -166,6 +248,7 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
                         NakedSwordSceneIE._COOKIES = client.cookies
                         client.cookies.set("ns_pfm", "True", "nakedsword.com")
                     except Exception as e:
+                        self.to_screen(f"{type(e)}: {str(e)}")
                         raise
                 else:
                     client.get(self._SITE_URL, headers=_headers)
@@ -181,160 +264,39 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
                         self._set_cookie("nakedsword.com","ns_pk", pk)
         
         
-            count = 5
+            res = self._get_url(client, url, _headers)
+            info_video = self._get_info(url, res)
+            if not info_video: raise ExtractorError("Can't find sceneid")
+                          
+            scene_id = info_video.get('id')
+            if not scene_id: raise ExtractorError("Can't find sceneid")
             
-            while (count > 0):
+            stream_url = "/".join(["https://nakedsword.com/scriptservices/getstream/scene", str(scene_id)])                                   
+            
+            with ThreadPoolExecutor(max_workers=2) as ex:
+                futs = [ex.submit(self._get_formats, client, url, "/".join([stream_url, "HLS"]), "m3u8"), 
+                       ex.submit(self._get_formats, client, url, "/".join([stream_url, "DASH"]), "dash")]
                 
+            formats = []
+            for _fut in futs:
                 try:
-                    info_video = self._get_info(url)
-                    if info_video: break
-                    else: count -= 1
+                    formats += _fut.result()
                 except Exception as e:
-                    count -= 1
-                
+                    self.to_screen(f"{type(e)} - {str(e)}")
+                   
             
-                
-         
-            scene_id = None
-            if info_video:
-                scene_id = info_video.get('id')
-                if scene_id:
-                    stream_url_m3u8 = "https://nakedsword.com/scriptservices/getstream/scene/" + scene_id + "/HLS"
-                    stream_url_dash = "https://nakedsword.com/scriptservices/getstream/scene/" + scene_id + "/DASH"
-                else:
-                    raise ExtractorError("Can't find sceneid")
-            else:
-                raise ExtractorError("Can't find sceneid")
-        
-
-            
-
-            #self.to_screen(stream_url_m3u8)
-            
-            mpd_url_m3u8 = None
-        
-            count = 0
-            
-            _aux = dict()
-            _aux.update({"Referer": url, "X-Requested-With": "XMLHttpRequest",  "Content-Type" : "application/json", "Accept": "application/json, text/javascript, */*; q=0.01"})
-            _headers_json = self._headers_ordered(_aux)
-        
-            while (count < 5):
-    
-                try:
-                    info_m3u8 = {}
-                    #self.to_screen(f"Count m3u8 info: [{count+1}]")
-                    client.get(url,headers=_headers)
-                    time.sleep(2)                  
-                    
-                    res = client.get(stream_url_m3u8, headers=_headers_json, timeout=80)
-                    
-                    #self.to_screen(f"{res.request} - {res} - {res.request.headers} - {res.headers} - {res.content}")
-                    
-                    if res.content:
-                        info_m3u8 = res.json()                                                   
-                        if info_m3u8: break
-                    
-                        
-                    #self.to_screen("No res")
-                    count += 1
-                            
-                    
-                              
-                except Exception as e:
-                    self.to_screen(f"{type(e)}: {str(e)}")
-                    count += 1
-                    continue
-
-
-            if not info_m3u8:
-                raise ExtractorError("Can't get json")    
-            
-        
-            self.to_screen(info_m3u8)
-            mpd_url_m3u8 = info_m3u8.get("StreamUrl")   
-                
-           
-            if not mpd_url_m3u8: raise ExtractorError("Can't find mpd m3u8")    
-            #self.to_screen(mpd_url_m3u8)     
-            
-            NakedSwordSceneIE._COOKIES = client.cookies
-            
-            
-            formats_m3u8 = None
-            _headers_m3u8 = self._headers_ordered({"Accept": "*/*", "Origin": "https://nakedsword.com", "Referer": self._SITE_URL})
-                        
-            count = 0
-            while (count < 5):
-        
-                try:
-                    time.sleep(2)
-                    #self.to_screen(f"Count formats m3u8: [{count+1}]")
-                    res = client.get(mpd_url_m3u8, headers=_headers_m3u8, timeout=60)
-                    #self.to_screen(f"{res.request} - {res} - {res.headers} - {res.request.headers} - {res.content}")
-                    m3u8_bytes = res.content
-                    m3u8_doc = m3u8_bytes.decode(res.encoding, 'replace')
-                    if m3u8_doc:                        
-                        formats_m3u8 = self._parse_m3u8_formats(m3u8_doc, mpd_url_m3u8, ext="mp4", entry_protocol="m3u8_native", m3u8_id="hls")
-                        break
-                    else: count += 1
-                    
-                except Exception as e:
-                    self.to_screen(f"{type(e)}: {str(e)}")
-                    count += 1
-                    continue
-
-            if not formats_m3u8: raise ExtractorError("Can't get formats m3u8")
-                
-            n = len(formats_m3u8)
-            for f in formats_m3u8:
-                f['format_id'] = "hls-" + str(n-1)
-                n = n - 1
-                
-            # info_dash = self._download_json(
-            #         getstream_url_dash,
-            #         scene_id,
-            #     )
-
-            # mpd_url_dash = info_dash.get("StreamUrl")
-
-
-            # formats_dash = self._extract_mpd_formats(
-            #     mpd_url_dash, scene_id, mpd_id="dash", fatal=False
-            # )
-
-
-                
-            # n = len(formats_dash)
-            # for f in formats_dash:
-            #     f['format_id'] = "dash-" + str(n-1)
-            #     n = n - 1
-                
-            
-
-            # title = info_m3u8.get("Title", "nakedsword")
-            # title = sanitize_filename(title, True)
-            # title = title + "_scene_" + title_id
-
-            #self._logout(client)
-            
-            #NakedSwordSceneIE._COOKIES = {}
-            
-            #formats = formats_m3u8 + formats_dash[:-5]
-            formats = formats_m3u8
-            
-            self._sort_formats(formats)
-            
-            title = info_video.get('title')
-        
+            self._sort_formats(formats) 
+ 
         except Exception as e:
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to_screen(f"{type(e)}: {str(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(str(e))
         finally:
             client.close()
 
         return {
             "id": scene_id,
-            "title": title,
+            "title": info_video.get('title'),
             "formats": formats,
             "ext": "mp4"
         }
@@ -343,8 +305,6 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
     IE_NAME = 'nakedsword:movie'
     _VALID_URL = r"https?://(?:www\.)?nakedsword.com/movies/(?P<id>[\d]+)/(?P<title>[a-zA-Z\d_-]+)/?$"
     _MOVIES_URL = "https://nakedsword.com/movies/"
-
- 
 
 
     def _real_extract(self, url):
@@ -440,7 +400,7 @@ class NakedSwordStarsIE(NakedSwordBaseIE):
     _MOST_WATCHED = "?content=Scenes&sort=MostWatched&page="
     _NPAGES = {"stars" : 1, "studios" : 1}
     
-    def _real_extract(self, url):      
+    def _real_extract(self, url):     
        
         
         data_list = re.search(self._VALID_URL, url).group("typepl", "id", "name")

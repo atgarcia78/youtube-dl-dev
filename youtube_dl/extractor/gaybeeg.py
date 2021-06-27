@@ -42,16 +42,31 @@ logger = logging.getLogger("gaybeeg")
 class GayBeegBaseIE(InfoExtractor):
     
     _FF_PROF = [        
-            "/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy"
+            "/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy", "/Users/antoniotorres/Library/Application Support/Firefox/Profiles/f7zfxja0.selenium_noproxy"
         ]
     
     
     
     def _get_entries_netdna(self, el_list):
-        entries = [{'_type' : 'url', 'url' : el_tag.get_attribute('href'), 'ie' : 'NetDNA', 'title': (info_video:=NetDNAIE.get_video_info(el_tag.get_attribute('href'))).get('title'), 'id' : info_video.get('id'), 'size': info_video.get('filesize')}
-                        for el in el_list
-                                    for el_tag in el.find_elements_by_tag_name("a")
-                                        if "//netdna-storage" in el_tag.get_attribute('href')] 
+        
+        _list_urls_netdna = []
+        for _el in el_list:
+            for _el_tag in _el.find_elements_by_tag_name("a"):
+                if "netdna-storage" in (_url:=_el_tag.get_attribute('href')):
+                    _list_urls_netdna.append(_url)
+        _final_list = list(set(_list_urls_netdna))
+        
+        entries = []
+        
+        for _item in _final_list:
+            _info_video = NetDNAIE.get_video_info(_item)
+            entries.append({'_type' : 'url', 'url' : _item, 'ie' : 'NetDNA', 'title': _info_video.get('title'), 'id' : _info_video.get('id'), 'filesize': _info_video.get('filesize')})
+                
+        #     _list_el_tag = list(set(_el.find_elements_by_tag_name("a")))
+        # entries = [{'_type' : 'url', 'url' : (_url:=el_tag.get_attribute('href')), 'ie' : 'NetDNA', 'title': (info_video:=NetDNAIE.get_video_info(_url)).get('title'), 'id' : info_video.get('id'), 'size': info_video.get('filesize')}
+        #                 for el in el_list
+        #                             for el_tag in el.find_elements_by_tag_name("a")
+        #                                 if "//netdna-storage" in el_tag.get_attribute('href')] 
                                     
         return entries
     
@@ -76,24 +91,21 @@ class GayBeegPlaylistPageIE(GayBeegBaseIE):
             prof_id = random.randint(0,5)
             prof_ff = FirefoxProfile(GayBeegBaseIE._FF_PROF[prof_id])
             opts = Options()
-            opts.headless = True 
-            opts.add_argument('--no-sandbox')
-            opts.add_argument('--ignore-certificate-errors-spki-list')
-            opts.add_argument('--ignore-ssl-errors')              
+            opts.headless = True             
             driver = None
             entries_final = None
             driver = Firefox(options=opts, firefox_profile=prof_ff)
             #driver.install_addon("/Users/antoniotorres/projects/comic_getter/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
+            driver.maximize_window()
+            time.sleep(5)
             try:
                 driver.uninstall_addon('@VPNetworksLLC')
             except Exception as e:
                 lines = traceback.format_exception(*sys.exc_info())
-                self.to.screen(f"Error: \n{'!!'.join(lines)}")
+                self.to_screen(f"Error: \n{'!!'.join(lines)}")
             
             driver.refresh()
-            self.to_screen(f"[worker_pl_main] init with ffprof[{prof_id}]")
-            driver.maximize_window()
-            time.sleep(5)            
+            self.to_screen(f"[worker_pl_main] init with ffprof[{prof_id}]")          
             self.report_extraction(url)
             driver.get(url)
             time.sleep(1)                
@@ -122,20 +134,24 @@ class GayBeegPlaylistPageIE(GayBeegBaseIE):
     
 class GayBeegPlaylistIE(GayBeegBaseIE):
     IE_NAME = "gaybeeg:allpagesplaylist"
-    _VALID_URL = r'https?://(www\.)?gaybeeg\.info/(?:site|pornstar)/[^/$]+/?$'
+    #_VALID_URL = r'https?://(www\.)?gaybeeg\.info/(?:site|pornstar)/[^/$]+(?:$|/^(page))'
+    #_VALID_URL = r'https?://(www\.)?gaybeeg\.info/(?:site|pornstar)/[^/$]+(?:$|/(?!page/.*))'
+    #_VALID_URL = r'https?://(www\.)?gaybeeg\.info/(?P<type>(?:site|tag|pornstar|\?s=.*))(?:$|(/[^/$]+(?:$|/(?!page.*))))'
 
+    #_VALID_URL = r'https?://(www\.)?gaybeeg\.info/((?P<type>(?:site|pornstar|tag)/[^\/$]+)(?:$|/))?((?P<search>\?s=[^$]+)$)?)'
     
+    _VALID_URL = r'https?://(www\.)?gaybeeg\.info/(?:((?P<type>(?:site|pornstar|tag))(?:$|(/(?P<name>[^\/$\?]+)))(?:$|/$|/(?P<search1>\?(?:tag|s)=[^$]+)$))|((?P<search2>\?(?:tag|s)=[^$]+)$))'
     
         
     def _worker_pl(self, i):        
                
-        prof_id = (i+1)//7 + (i+1)%7 - 1
+        prof_id = random.randint(0,5)
         prof_ff = FirefoxProfile(GayBeegBaseIE._FF_PROF[prof_id])  
         opts = Options()
         opts.headless = True         
-        opts.add_argument('--no-sandbox')
-        opts.add_argument('--ignore-certificate-errors-spki-list')
-        opts.add_argument('--ignore-ssl-errors')  
+        # opts.add_argument('--no-sandbox')
+        # opts.add_argument('--ignore-certificate-errors-spki-list')
+        # opts.add_argument('--ignore-ssl-errors')  
         self.to_screen(f"[worker_pl{i}] init with ffprof[{prof_id}]")
         
         try:
@@ -148,7 +164,7 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
                 driver.uninstall_addon('@VPNetworksLLC')
             except Exception as e:
                 lines = traceback.format_exception(*sys.exc_info())
-                self.to.screen(f"Error: \n{'!!'.join(lines)}")
+                self.to_screen(f"Error: \n{'!!'.join(lines)}")
             
             driver.refresh()
             
@@ -231,9 +247,9 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
             prof_ff = FirefoxProfile(GayBeegBaseIE._FF_PROF[prof_id])
             opts = Options()
             opts.headless = True
-            opts.add_argument('--no-sandbox')
-            opts.add_argument('--ignore-certificate-errors-spki-list')
-            opts.add_argument('--ignore-ssl-errors')              
+            # opts.add_argument('--no-sandbox')
+            # opts.add_argument('--ignore-certificate-errors-spki-list')
+            # opts.add_argument('--ignore-ssl-errors')              
             driver = None
             entries_final = None
             driver = Firefox(options=opts, firefox_profile=prof_ff)
@@ -244,7 +260,7 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
                 driver.uninstall_addon('@VPNetworksLLC')
             except Exception as e:
                 lines = traceback.format_exception(*sys.exc_info())
-                self.to.screen(f"Error: \n{'!!'.join(lines)}")
+                self._screen(f"Error: \n{'!!'.join(lines)}")
             
             driver.refresh()
             self.to_screen(f"[worker_pl_main] init with ffprof[{prof_id}]")
@@ -264,6 +280,18 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
             
             el_pagination = driver.find_elements_by_class_name("pagination")
             
+            mobj = re.search(self._VALID_URL,url)
+            
+            _type, _name, _search1, _search2 = mobj.group('type','name','search1','search2')
+            
+            _search = _search1 or _search2
+            
+            
+            _items_url_fix = [_item for _item in ["https://gaybeeg.info",_type,_name] if _item]
+            
+            _url_fix = "/".join(_items_url_fix)
+            
+            
             if el_pagination:
                 webpage = el_pagination[0].get_attribute("innerHTML")
                 _n_pages = re.search(r'Page 1 of (?P<n_pages>[\d]+)<', webpage)
@@ -274,10 +302,14 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
                     #driver.quit()
                 #driver.close()
                 #driver.quit()
-                if not url.endswith("/"): url = f"{url}/"
+
+                    
+                
                 self.to_screen(f"[worker_pl_main] Playlist with {n_pages} pages including this main page. Starting to process the pending {n_pages - 1} pages")
                 if n_pages == 2:
-                    driver.get(f"{url}page/2")
+                    _items_url = [_item for _item in [_url_fix,"page","2", _search] if _item]
+                    _url = "/".join(_items_url)                   
+                    driver.get(_url)
                     time.sleep(1) 
                     el_list = WebDriverWait(driver, 120).until(ec.presence_of_all_elements_located((By.CLASS_NAME, "hentry-large")))
                     #self.to_screen([el.text for el in el_list])
@@ -290,8 +322,12 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
                     #driver.quit()
                 elif n_pages > 2:    
                     #driver.quit()
-                    for num in range(2,n_pages+1):                    
-                        self.queue_in.put({'url': f"{url}page/{num}", 'page': num})
+                    for num in range(2,n_pages+1):
+                        _items_url = [_item for _item in [_url_fix,"page",str(num), _search] if _item]
+                        _url = "/".join(_items_url) 
+                        
+                                            
+                        self.queue_in.put({'url': _url, 'page': num})
                                                 
                     for _ in range(min(16,n_pages-1) - 1):
                         self.queue_in.put({'url': "KILL", 'page': 0})
@@ -347,9 +383,9 @@ class GayBeegIE(GayBeegBaseIE):
             prof_id = random.randint(0,5)
             opts = Options()
             opts.headless = True 
-            opts.add_argument('--no-sandbox')
-            opts.add_argument('--ignore-certificate-errors-spki-list')
-            opts.add_argument('--ignore-ssl-errors')  
+            # opts.add_argument('--no-sandbox')
+            # opts.add_argument('--ignore-certificate-errors-spki-list')
+            # opts.add_argument('--ignore-ssl-errors')  
             prof_ff = FirefoxProfile(GayBeegBaseIE._FF_PROF[prof_id])            
             driver = None            
             driver = Firefox(options=opts, firefox_profile=prof_ff)
@@ -359,7 +395,7 @@ class GayBeegIE(GayBeegBaseIE):
                 driver.uninstall_addon('@VPNetworksLLC')
             except Exception as e:
                 lines = traceback.format_exception(*sys.exc_info())
-                self.to.screen(f"Error: \n{'!!'.join(lines)}")
+                self.to_screen(f"Error: \n{'!!'.join(lines)}")
             
             driver.refresh()
             self.to_screen(f"[worker_pl_main] init with ffprof[{prof_id}]")

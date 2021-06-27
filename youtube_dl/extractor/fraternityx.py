@@ -1,10 +1,10 @@
 # coding: utf-8
 from __future__ import unicode_literals
 
-import json
+
 import re
 import random
-import urllib.parse
+
 
 from .common import InfoExtractor
 from ..utils import (
@@ -12,8 +12,12 @@ from ..utils import (
     sanitize_filename
 )
 
-import logging
+
 import threading
+import time
+import traceback
+import sys
+
 
 from selenium.webdriver import Firefox
 from selenium.webdriver import FirefoxProfile
@@ -22,7 +26,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
 
-import httpx
+
 
 class FraternityXBaseIE(InfoExtractor):
     _LOGIN_URL = "https://fraternityx.com/sign-in"
@@ -182,14 +186,14 @@ class FraternityXBaseIE(InfoExtractor):
         
         _title = driver.title 
         
-        #self.to_screen(_title)
+
         
         driver.get(self._SITE_URL)
         
         self.wait_until_not(driver, 60, ec.title_is(_title))
         
         _title = driver.title.lower()
-        #self.to_screen(_title)
+   
         if "warning" in _title:
             self.to_screen("Adult consent")
             el_enter = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "a.enter-btn")))['el']
@@ -242,19 +246,24 @@ class FraternityXIE(FraternityXBaseIE):
     
     
     def _real_initialize(self):
-        #self.to_screen("****************Real init FraternityXIE")
+       
         with FraternityXIE._LOCK:
             if not FraternityXIE._COOKIES:
-                prof_id = 6
+                prof_id = random.randint(0,5)
                 prof_ff = FirefoxProfile(self._FF_PROF[prof_id])
                 opts = Options()
                 opts.headless = True
-                opts.add_argument('--no-sandbox')
-                opts.add_argument('--ignore-certificate-errors-spki-list')
-                opts.add_argument('--ignore-ssl-errors') 
+         
+                                
                 driver = Firefox(options=opts, firefox_profile=prof_ff)
-                #driver.delete_all_cookies()
-                driver.install_addon("/Users/antoniotorres/projects/comic_getter/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
+                driver.maximize_window()
+                time.sleep(5)            
+                try:
+                    driver.install_addon("/Users/antoniotorres/projects/comicdl/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
+                    driver.uninstall_addon('@VPNetworksLLC')
+                except Exception as e:
+                    lines = traceback.format_exception(*sys.exc_info())
+                    self._screen(f"Error: \n{'!!'.join(lines)}")
                 driver.delete_all_cookies()
                 try:
                     self._login(driver)
@@ -269,26 +278,29 @@ class FraternityXIE(FraternityXBaseIE):
         
 
     def _real_extract(self, url):
-        prof_id = 6
+        prof_id = random.randint(0,5)
         prof_ff = FirefoxProfile(self._FF_PROF[prof_id])
         opts = Options()
         opts.headless = True
-        opts.add_argument('--no-sandbox')
-        opts.add_argument('--ignore-certificate-errors-spki-list')
-        opts.add_argument('--ignore-ssl-errors') 
-        driver = Firefox(options=opts, firefox_profile=prof_ff)
-        #driver.delete_all_cookies()
-        driver.install_addon("/Users/antoniotorres/projects/comic_getter/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
+           
+                        
+        driver = Firefox(options=opts, firefox_profile=prof_ff)  
+        driver.maximize_window()
+        time.sleep(5)            
+        try:
+            driver.install_addon("/Users/antoniotorres/projects/comicdl/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
+            driver.uninstall_addon('@VPNetworksLLC')
+        except Exception as e:
+            lines = traceback.format_exception(*sys.exc_info())
+            self._screen(f"Error: \n{'!!'.join(lines)}")       
         driver.get(self._SITE_URL)
         if (_cookies:=FraternityXIE._COOKIES):
             driver.delete_all_cookies()
             for cookie in _cookies:
                 driver.add_cookie(cookie)
             
-        driver.refresh()
-        #self._login(driver) 
-        data = self._extract_from_page(driver, url)
-        #self._log_out()
+        driver.refresh()       
+        data = self._extract_from_page(driver, url)    
         driver.quit()
         if not data:
             raise ExtractorError("Not any video format found")
@@ -306,18 +318,21 @@ class FraternityxOnePagePlayListIE(FraternityXBaseIE):
     def _real_extract(self, url):
 
         playlistid = re.search(self._VALID_URL, url).group("id")
-        prof_id = 6
+        prof_id = random.randint(0,5)
         prof_ff = FirefoxProfile(self._FF_PROF[prof_id])
         opts = Options()
         opts.headless = True
-        opts.add_argument('--no-sandbox')
-        opts.add_argument('--ignore-certificate-errors-spki-list')
-        opts.add_argument('--ignore-ssl-errors') 
-        driver = Firefox(options=opts, firefox_profile=prof_ff)
-        #driver.delete_all_cookies()
-        driver.install_addon("/Users/antoniotorres/projects/comic_getter/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
+          
+                        
+        driver = Firefox(options=opts, firefox_profile=prof_ff)      
         driver.maximize_window()
-        driver.refresh()
+        time.sleep(5)            
+        try:
+            driver.install_addon("/Users/antoniotorres/projects/comicdl/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
+            driver.uninstall_addon('@VPNetworksLLC')
+        except Exception as e:
+            lines = traceback.format_exception(*sys.exc_info())
+            self._screen(f"Error: \n{'!!'.join(lines)}")
 
         entries = self._extract_list(driver, playlistid, nextpages=False)  
         driver.quit()
@@ -333,18 +348,21 @@ class FraternityxAllPagesPlayListIE(FraternityXBaseIE):
     def _real_extract(self, url):
 
         
-        prof_id = 6
+        prof_id = random.randint(0,5)
         prof_ff = FirefoxProfile(self._FF_PROF[prof_id])
         opts = Options()
         opts.headless = True
-        opts.add_argument('--no-sandbox')
-        opts.add_argument('--ignore-certificate-errors-spki-list')
-        opts.add_argument('--ignore-ssl-errors') 
-        driver = Firefox(options=opts, firefox_profile=prof_ff)
-        #driver.delete_all_cookies()
-        driver.install_addon("/Users/antoniotorres/projects/comic_getter/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
+             
+                        
+        driver = Firefox(options=opts, firefox_profile=prof_ff)        
         driver.maximize_window()
-        driver.refresh()
+        time.sleep(5)            
+        try:
+            driver.install_addon("/Users/antoniotorres/projects/comicdl/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
+            driver.uninstall_addon('@VPNetworksLLC')
+        except Exception as e:
+            lines = traceback.format_exception(*sys.exc_info())
+            self._screen(f"Error: \n{'!!'.join(lines)}")
 
         entries = self._extract_list(driver, 1, nextpages=True)  
         driver.quit()

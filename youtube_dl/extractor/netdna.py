@@ -13,6 +13,7 @@ from ..utils import (
 import hashlib
 import sys
 import traceback
+import random
 
 
 import shutil
@@ -26,18 +27,21 @@ import time
 import httpx
 import threading
 
+import traceback
+
 
 class NetDNAIE(InfoExtractor):
     IE_NAME = "netdna"
     _VALID_URL = r'https?://(www\.)?netdna-storage\.com/f/[^/]+/(?P<title_url>[^\.]+)\.(?P<ext>[^\.]+)\..*'
     _DICT_BYTES = {'KB': 1024, 'MB': 1024*1024, 'GB' : 1024*1024*1024}
 
+    
     _FF_PROF = [        
             "/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy", "/Users/antoniotorres/Library/Application Support/Firefox/Profiles/f7zfxja0.selenium_noproxy"
         ]
     
-    _COUNT = 0
-    _LOCK = threading.Lock()
+    # _COUNT = 0
+    # _LOCK = threading.Lock()
     
 
  
@@ -68,7 +72,7 @@ class NetDNAIE(InfoExtractor):
             
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
-            NetDNAIE.to.screen(f"Error: \n{'!!'.join(lines)}")
+            NetDNAIE.to_screen(f"Error: {repr(e)}\n{'!!'.join(lines)}")
         finally:
             client.close()        
        
@@ -80,15 +84,14 @@ class NetDNAIE(InfoExtractor):
             return({'id': None})
 
 
-    def wait_until(self, driver, time, method):
+    def wait_until(self, driver, time, method):        
         
-        error = False
         try:
             el = WebDriverWait(driver, time).until(method)
         except Exception as e:
             el = None
-            error = True
-        return({'error': error, 'el': el})   
+    
+        return(el)   
 
     
     def _get_filesize(self, url):
@@ -97,7 +100,7 @@ class NetDNAIE(InfoExtractor):
         try:
             cl = httpx.Client()
             _res = None
-            while (count<1):
+            while (count<3):
                 
                 try:
                     
@@ -125,78 +128,81 @@ class NetDNAIE(InfoExtractor):
         #title_url, ext_url = re.search(self._VALID_URL,url).group("title_url", "ext")
         info_video = NetDNAIE.get_video_info(url)
         self.report_extraction(info_video.get('title'))
-        with NetDNAIE._LOCK:
-            NetDNAIE._COUNT += 1
-            pos = NetDNAIE._COUNT
+        # with NetDNAIE._LOCK:
+        #     NetDNAIE._COUNT += 1
+        #     pos = NetDNAIE._COUNT
         
-        prof_id = pos%6         
+        #prof_id = pos%6
+         
         
-        self.to_screen(f"{info_video.get('title')} : ffprof [{prof_id}]")
-        self.to_screen(f"New NetDNAIE instance, count instances [{pos}] profile firefox {prof_id}")
-        prof_ff = FirefoxProfile(self._FF_PROF[prof_id])        
-        opts = Options()
-        opts.headless = True
-        opts.add_argument('--no-sandbox')
-        opts.add_argument('--ignore-certificate-errors-spki-list')
-        opts.add_argument('--ignore-ssl-errors')  
-        driver = Firefox(options=opts, firefox_profile=prof_ff)
-        driver.maximize_window()
-        time.sleep(5)
-        try:
-            driver.uninstall_addon('@VPNetworksLLC')
-        except Exception as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            self.to.screen(f"Error: \n{'!!'.join(lines)}")
+        count = 0
         
-        driver.refresh()  
+        while True:        
+        
+            try:
                 
-        try:           
-            entry = None
-            _title = driver.title
-            driver.get(url)
-            time.sleep(1)
-            _reswait = self.wait_until(driver, 90, ec.url_contains("download"))
-            if _reswait['error']:
-                #raise ExtractorError(f"{url} - Bypass stopped at: {driver.current_url}")
-                time.sleep(10)
-                self.to_screen(f"{url} - Bypass stopped at: {driver.current_url}")
-                _reswait = self.wait_until(driver, 30, ec.presence_of_element_located((By.ID, "x-token")))
-                if not _reswait['error']:
-                    _reswait['el'].submit()
-                    time.sleep(10)
-                    _reswait = self.wait_until(driver, 30, ec.presence_of_element_located((By.ID, "x-token")))
-                    if not _reswait['error']:
-                        _reswait['el'].submit()
-                        time.sleep(1)
-                        _reswait = self.wait_until(driver, 30, ec.url_contains("download"))
-                          
-            _title = driver.title.lower()        
-            if "file not found" in _title or "error" in _title:
-                self.to_screen(f"{info_video.get('title')} Page not found - {url}")
-                raise ExtractorError(f"Page not found - {url}")
-            
-            elif not "download" in (_curl:=driver.current_url): 
-                self.to_screen(f"{info_video.get('title')} Bypass stopped at: {_curl}")
-                raise ExtractorError(f"{url} - Bypass stopped at: {_curl}") 
-            else:
-                
-                self.to_screen(_title)
-                
+                prof_id = random.randint(0,5)         
+                self.to_screen(f"{info_video.get('title')} : ffprof [{prof_id}]")
+                opts = Options()
+                opts.headless = True
+                prof_ff = FirefoxProfile(self._FF_PROF[prof_id]) 
+                driver = Firefox(options=opts, firefox_profile=prof_ff)
+                #driver.maximize_window()
+                time.sleep(5)
                 try:
-          
+                    driver.uninstall_addon('@VPNetworksLLC')
+                except Exception as e:            
+                    self.to.screen(f"Error: {repr(e)}")
+                
+                driver.get("https://gaybeeg.info") 
+                self.wait_until(driver, 30, ec.title_contains("GayBeeg"))            
+                        
+                entry = None
+                driver.get(url)
+                time.sleep(1)
+                _reswait = self.wait_until(driver, 90, ec.url_contains("download"))
+                if not _reswait:
+                    #raise ExtractorError(f"{url} - Bypass stopped at: {driver.current_url}")
+                    #time.sleep(10)
+                    self.to_screen(f"{url} - Bypass stopped at: {driver.current_url}")
+                    _reswait = self.wait_until(driver, 30, ec.presence_of_element_located((By.ID, "x-token")))
+                    if _reswait:
+                        _reswait.submit()
+                        time.sleep(10)
+                        _reswait = self.wait_until(driver, 30, ec.presence_of_element_located((By.ID, "x-token")))
+                        if _reswait:
+                            _reswait.submit()
+                            time.sleep(1)
+                            _reswait = self.wait_until(driver, 30, ec.url_contains("download"))
+                            
+                _title = driver.title.lower()        
+                if "file not found" in _title or "error" in _title:
+                    self.to_screen(f"{info_video.get('title')} Page not found - {url}")
+                    raise ExtractorError(f"Page not found - {url}")
+                
+                elif not "download" in (_curl:=driver.current_url): 
+                    self.to_screen(f"{info_video.get('title')} Bypass stopped at: {_curl}")
+                    raise ExtractorError(f"{url} - Bypass stopped at: {_curl}") 
+                else:
+                    
+                    self.to_screen(_title)
+                    
+                    
+            
                     time.sleep(1)
                     formats_video = []
                     #el_url = WebDriverWait(driver, 60).until(ec.presence_of_element_located((By.CSS_SELECTOR,"a.btn.btn--xLarge")))
                     _reswait = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR,"a.btn.btn--xLarge")))
                     _filesize = None
-                    if not _reswait['error']:
-                        _url = _reswait['el'].get_attribute('href')
+                    if _reswait:
+                        _url = _reswait.get_attribute('href')
                         _filesize = self._get_filesize(_url)
+                        self.to_screen(f"url[{_url}]")
                     
                     if not _filesize:
                         driver.get(url)
                         _reswait = self.wait_until(driver, 90, ec.url_contains("download"))
-                        if _reswait['error']:
+                        if not _reswait:
                             raise ExtractorError(f"Bypass didnt work till the last page - {url}")
 
                         self.to_screen(driver.title)
@@ -204,8 +210,8 @@ class NetDNAIE(InfoExtractor):
 
                         _reswait = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR,"a.btn.btn--xLarge")))
                         _filesize = None
-                        if not _reswait['error']:
-                            _url = _reswait['el'].get_attribute('href')
+                        if _reswait:
+                            _url = _reswait.get_attribute('href')
                             _filesize = self._get_filesize(_url)
                         if not _filesize:
                             raise ExtractorError(f"error404 - {url}")
@@ -216,49 +222,57 @@ class NetDNAIE(InfoExtractor):
                                                 'filesize' : _filesize 
                                             })
                     
-                    el_formats = [{'url' : el.get_attribute('href'), 'text': el.get_attribute('innerText')} 
-                                    for el in driver.find_elements_by_css_selector("a.btn.btn--small")]
+                    _reswait = self.wait_until(driver, 1, ec.presence_of_all_elements_located((By.CSS_SELECTOR,"a.btn.btn--small")))
                     
-                    if el_formats and len(el_formats) > 1:                        
- 
+                    el_formats = []
+                    if _reswait:
+                        el_formats = [{'url' : el.get_attribute('href'), 'text': el.get_attribute('innerText')} 
+                                    for el in _reswait]
+                    
+                    if el_formats and len(el_formats) > 1: 
                         
-                            for fmt in el_formats[1:]:
-                                
-                                driver.get(fmt['url'])
-                                el_url = WebDriverWait(driver, 60).until(ec.presence_of_element_located((By.CSS_SELECTOR,"a.btn.btn--xLarge")))
+                        for fmt in el_formats[1:]:
+                            
+                            driver.get(fmt['url'])
+                            el_url = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR,"a.btn.btn--xLarge")))
+                            if el_url:
                                 formats_video.append({'format_id': fmt['text'], 
                                                 'url': (_url:=el_url.get_attribute('href')),
                                                 'ext': info_video.get('ext'),
                                                 'filesize' : self._get_filesize(_url)
-                                               
+                                                
                                             })
-                                
-                        
+                            
                     self._sort_formats(formats_video)
-                    
+                        
                     entry = {
                         'id' : info_video.get('id'),
                         'title': sanitize_filename(info_video.get('title'),restricted=True),
                         'formats': formats_video,
                         'ext' : info_video.get('ext')
                     }
+                        
+                break  
                     
-                    #driver.quit()
-                    
-
-                except Exception as e:
-                    
-                    raise
+            except Exception as e:  
+                          
+                lines = traceback.format_exception(*sys.exc_info())
+                self.to_screen(f"{repr(e)}, will retry \n{'!!'.join(lines)}")
+                count += 1
+                self.to_screen(f"[count] {count}")
+                driver.quit()
                 
-        except Exception as e:            
+                if (count == 3):
+                
+                    if isinstance(e, ExtractorError):
+                        raise
+                    else:
+                        raise ExtractorError(str(e)) from e 
+            finally:
+                driver.quit()
+                
+        return entry     
             
-            if isinstance(e, ExtractorError):
-                raise
-            else:
-                raise ExtractorError(str(e)) from e 
-        finally:
-            driver.quit()  
-            
-        return(entry)              
+                     
             
             

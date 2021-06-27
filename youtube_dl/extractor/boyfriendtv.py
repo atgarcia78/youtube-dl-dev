@@ -12,167 +12,224 @@ import requests
 
 from ..utils import (
     ExtractorError,
-    urlencode_postdata,
+    get_element_by_attribute,  
     urljoin,
     int_or_none,
-    sanitize_filename
+    sanitize_filename,
+    std_headers
 
 )
 
+import random
+import time
+import threading
 
+from selenium.webdriver import Firefox
+from selenium.webdriver import FirefoxProfile
+from selenium.webdriver.firefox.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as ec
+from selenium.webdriver.common.by import By
+
+import traceback
+import sys
+
+import httpx
 class BoyFriendTVBaseIE(InfoExtractor):
-    _LOGIN_URL = 'https://www.boyfriendtv.com/login'
+    _LOGIN_URL = 'https://www.boyfriendtv.com/login/'
     _SITE_URL = 'https://www.boyfriendtv.com'
     _NETRC_MACHINE = 'boyfriendtv'
     _LOGOUT_URL = 'https://www.boyfriendtv.com/logout'
-    _PROFILE_URL = 'https://www.boyfriendtv.com/profiles/1778026/'
+   
     
-    def is_logged(self, url):
-        return (url == self._SITE_URL + "/")
+    _FF_PROF = [        
+            "/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4","/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy", "/Users/antoniotorres/Library/Application Support/Firefox/Profiles/f7zfxja0.selenium_noproxy"
+        ]
     
-    def _login(self):
+    def wait_until(self, driver, time, method):
+        
+        error = False
+        try:
+            el = WebDriverWait(driver, time).until(method)
+        except Exception as e:
+            el = None
+            error = True
+        return(el) 
+    
+    def wait_until_not(self, driver, time, method):
+        
+        error = False
+        try:
+            el = WebDriverWait(driver, time).until_not(method)
+        except Exception as e:
+            el = None
+            error = True
+        return(el)
+    
+    def _get_info_video(self, cl, url):
+       
+        count = 0
+        while (count<5):
+                
+            try:
+                
+                res = cl.head(url)
+                if res.status_code > 400:
+                    
+                    count += 1
+                else: 
+                    
+                    _res = int_or_none(res.headers.get('content-length')) 
+                    _url = str(res.url)
+                    self.to_screen(f"{url}:{_url}:{_res}")
+                    if _res and _url: 
+                        break
+                    else:
+                        count += 1
+        
+            except Exception as e:
+                count += 1
+                
+            time.sleep(1)
+                
+        if count < 5: return ({'url': _url, 'filesize': _res}) 
+        else: return ({'error': 'max retries'})  
+    
+   
+
+    
+    def _login(self, driver):
         self.username, self.password = self._get_login_info()
-        if self.username is None:
-            return
-
-        login_page, urlh = self._download_webpage_handle(
-            self._LOGIN_URL, None, 'Downloading login page')
-
         
-        if self.is_logged(urlh.geturl()):
-            return
-
-        login_form = self._form_hidden_inputs('loginForm', login_page)
-
-        login_form.update({
-            "login": self.username,
-            "password": self.password
-        })
-
-        post_url = urljoin(self._LOGIN_URL, self._search_regex(
-            r'<form[^>]+action=(["\'])(?P<url>.+?)\1', login_page,
-            'post url', default=self._LOGIN_URL, group='url'))
+        self.report_login()
+        driver.get(self._LOGIN_URL)
         
-        if not post_url.startswith('http'):
-            post_url = urljoin(self._LOGIN_URL, post_url)
+        el_username = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "input#login.form-control")))
+        el_password = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "input#password.form-control")))
+        if el_username and el_password:
+            el_username.send_keys(self.username)
+            el_password.send_keys(self.password)
+        el_login = driver.find_element_by_css_selector("input.btn.btn-submit")
+        _current_url = driver.current_url
+        el_login.click()
+        self.wait_until(driver, 60, ec.url_changes(_current_url))
         
 
-        response, urlh = self._download_webpage_handle(
-            post_url, None, 'Logging in', 'Wrong login info',
-            data=urlencode_postdata(login_form),
-            headers={'Content-Type': 'application/x-www-form-urlencoded'})
-
-      
-        # Successful login
-        if self.is_logged(urlh.geturl()):
-            return
-
-        else:
-            raise ExtractorError('Unable to log in', expected=True)
-
-    def _logout(self):
-        login_page, urlh = self._download_webpage_handle(
-            self._LOGIN_URL, None, 'logout page',
-            headers={'Referer': self._PROFILE_URL})
-        
-        if urlh == self._SITE_URL:
-            return
-        else:
-            raise ExtractorError('Unable to log out', expected=True)
 
  
 class BoyFriendTVIE(BoyFriendTVBaseIE):
     IE_NAME = 'boyfriendtv'
     _VALID_URL = r'https?://(?:(?P<prefix>m|www|es|ru|de)\.)?(?P<url>boyfriendtv\.com/videos/(?P<video_id>[0-9]+)/?(?:([0-9a-zA-z_-]+/?)|$))'
-    _SOURCES_FORM = r'sources: {(?P<type>.+?):\[(?P<sources>.+?)\]}'
 
+    _LOCK = threading.Lock()
+    
+    _COOKIES = None
+    
     def _real_initialize(self):
-        self._login()
+        
+        
+        with BoyFriendTVIE._LOCK:
+            if not BoyFriendTVIE._COOKIES:
+                try:
+        
+                    prof_id = random.randint(0,5)         
+                    self.to_screen(f"ffprof [{prof_id}]")
+                    opts = Options()
+                    opts.headless = True
+                    prof_ff = FirefoxProfile(self._FF_PROF[prof_id]) 
+                    driver = Firefox(options=opts, firefox_profile=prof_ff)
+                    #driver.maximize_window()
+                    time.sleep(5)
+                    try:
+                        driver.uninstall_addon('@VPNetworksLLC')
+                    except Exception as e:            
+                        self.to.screen(f"Error: {repr(e)}")
+                        
+                    driver.get(self._SITE_URL)
+                    self.wait_until(driver, 60, ec.title_contains("Gay"))
+                    driver.add_cookie({'name': 'rta_terms_accepted', 'value': 'true', 'domain': '.boyfriendtv.com', 'path': '/'})
+                    driver.refresh()
+                    self._login(driver)
+                    
+                    BoyFriendTVIE._COOKIES = driver.get_cookies()
+                except Exception as e:
+                    
+                    raise ExtractorError("init issue")
+                finally:
+                    driver.quit()
+                    
 
+ 
+    
     def _real_extract(self, url):
         mobj = re.match(self._VALID_URL, url)
-        video_id = mobj.group('video_id')
-
+        _video_id = mobj.group('video_id')
         
-        webpage, urlh = self._download_webpage_handle(
-            url, video_id, "Downloading web page video",
-            headers={'X-Requested-With': 'XMLHttpRequest'})
-
-        if not 'VideoPlayer' in webpage:
-            webpage, urlh = self._download_webpage_handle(
-                self._LOGIN_URL + "/?fw=" + url, video_id, "login web page video",
-                headers={'X-Requested-With': 'XMLHttpRequest'})
+        try:
             
-            login_form = self._form_hidden_inputs('loginForm', webpage)
-
-            login_form.update({
-                "login": self.username,
-                "password": self.password
-            })
-
-            post_url = urljoin(self._LOGIN_URL, self._search_regex(
-                r'<form[^>]+action=(["\'])(?P<url>.+?)\1', webpage,
-                'post url', default=self._LOGIN_URL, group='url'))
-            
-            if not post_url.startswith('http'):
-                post_url = urljoin(self._LOGIN_URL, post_url)
-            
-
-            response, urlh = self._download_webpage_handle(
-                post_url, None, 'Logging in', 'Wrong login info',
-                data=urlencode_postdata(login_form),
-                headers={'Content-Type': 'application/x-www-form-urlencoded'})
-
-            webpage, urlh = self._download_webpage_handle(url, video_id, "Downloading web page video",
-                                            headers={'X-Requested-With': 'XMLHttpRequest'})
-
-
-        
-        sources = self._search_regex(self._SOURCES_FORM, webpage, 'sources', default=None, group='sources', fatal=False)
-        if sources:
-            sources = "[" + sources + "]"
-        else:
-            raise ExtractorError("No video info", expected=True)  
-            
-
-        video_title = self._search_regex(r'title: "(?P<title>.+?)"', webpage, 'title', group='title')    
-        
-        video_type = re.search(self._SOURCES_FORM, webpage).group('type')
-        
-        sources_json = json.loads(sources)
-        
-        formats = []
-
-        for src in sources_json:
-            url_v = src['src'].replace("\\","")
-            filesize = None
+            prof_id = random.randint(0,5)
+            prof_ff = FirefoxProfile(self._FF_PROF[prof_id])
+            opts = Options()
+            opts.headless = True                        
+            driver = Firefox(options=opts, firefox_profile=prof_ff)
+            driver.maximize_window()
+            time.sleep(5)            
             try:
-                #res = requests.get(url_v, stream=True)
-                res = requests.head(url_v)
-                filesize = int(res.headers['Content-Length'])
-                #filesize = int(requests.head(url_v).headers['content-length'])
+                driver.uninstall_addon('@VPNetworksLLC')
             except Exception as e:
-                pass
-
-            formats.append({
-                'format_id': "mp4",
-                'url': url_v,
-                'height': int(src['desc'][:-1]),
-                'filesize': filesize
-            })
-
-        self._sort_formats(formats)
-
-        average_rating = int_or_none(self._search_regex(
-            r'<div class="progress-big js-rating-title" title="(?P<average_rating>.+?)%">', webpage, 'average_rating', group='average_rating', default=None))
-
-
-        return ({
-            'id': video_id,
-            'title': sanitize_filename(video_title, True),
-            'formats': formats,
-            'average_rating': average_rating
-        })
+                lines = traceback.format_exception(*sys.exc_info())
+                self._screen(f"Error: \n{'!!'.join(lines)}")       
+            driver.get(self._SITE_URL)
+            if (_cookies:=BoyFriendTVIE._COOKIES):
+                driver.delete_all_cookies()
+                for cookie in _cookies: driver.add_cookie(cookie)
+            
+            driver.refresh()
+            driver.get(url)
+            
+            el_sources = self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.CLASS_NAME, "download-item")))
+            
+            _cookies = driver.get_cookies()
+            cl = httpx.Client() 
+            for cookie in _cookies: cl.cookies.set(cookie['name'], cookie['value'], cookie['domain'], cookie['path'])
+            cl.headers['user-agent'] = std_headers['User-Agent']
+            
+            _formats = []
+            for _el in el_sources:
+                _info_video = self._get_info_video(cl, _el.get_attribute('href'))
+                _innertext = _el.get_attribute('innerText') 
+                mobj = re.search(r'\n\t(?P<height>\d+)p', _innertext)
+                _height = int(mobj.group('height')) if mobj else None
+                _formats.append({
+                    'url': _info_video.get('url'), 
+                    'height':  _height,
+                    'ext': 'mp4',
+                    'filesize': _info_video.get('filesize'),
+                    'format_id': f'http{_height}'})                   
+           
+            
+            
+            self._sort_formats(_formats)
+            
+            _title = self._search_regex((r'<h1>(?P<title>[^\<]+)\<', r'\"og:title\" content=\"(?P<title>[^\"]+)\"'), driver.page_source, "title", fatal=False, default="no_title", group="title")
+            
+                 
+            
+            
+        except Exception as e:
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")
+            raise ExtractorError(e)
+        finally:
+            driver.quit()
+            cl.close()
+            
+        return({
+                'id': _video_id,
+                'title': sanitize_filename(_title, restricted=True),
+                'formats': _formats,
+            
+            })       
 
 
 class BoyFriendTVPlayListIE(BoyFriendTVBaseIE):
@@ -180,65 +237,56 @@ class BoyFriendTVPlayListIE(BoyFriendTVBaseIE):
     IE_DESC = 'boyfriendtvplaylist'
     _VALID_URL = r'https?://(?:(m|www|es|ru|de)\.)boyfriendtv\.com/playlists/(?P<playlist_id>.*?)(?:(/|$))'
 
-    def _real_initialize(self):
-        self._login()
+ 
     
     def _real_extract(self, url):
         mobj = re.match(self._VALID_URL, url)
         playlist_id = mobj.group('playlist_id')
 
 
-        webpage = self._download_webpage(url, playlist_id, "Downloading web page playlist")
-
-        pl_title = self._html_search_regex(r'(?s)<h1>(?P<title>.*?)<', webpage, 'title', group='title')
-        
-        entries = []
-
-        i = 2
-        ep_id = 0
-        while True:
-
-            if webpage:            
-                videos_paths = re.findall(
-                    r'(?s)<li class="playlist-video-thumb thumb-item videospot">.*?<a href="([^"]+)"',
-                    webpage)
-                titles_list = re.findall(
-                    r'(?s)<li class="playlist-video-thumb thumb-item videospot">.*?title="([^"]+)"',
-                    webpage)
-                rating_list = re.findall(
-                    r'(?s)<div class="progress-small js-rating-title.*?title="([^"]+)%"',
-                    webpage)
-                ids_list = re.findall(
-                    r'(?s)<li class="playlist-video-thumb thumb-item videospot">.*?data-video-id="([^"]+)"',
-                    webpage)
-
-                lista_len = [len(videos_paths), len(titles_list), len(rating_list), len(ids_list)]
-                if len(set(lista_len)) > 1:
-                    raise ExtractorError("Data mismatch for videos in the playlist")                   
+        try:
+            
+            prof_id = random.randint(0,5)         
+            self.to_screen(f"ffprof [{prof_id}]")
+            opts = Options()
+            opts.headless = True
+            prof_ff = FirefoxProfile(self._FF_PROF[prof_id]) 
+            driver = Firefox(options=opts, firefox_profile=prof_ff)
+            #driver.maximize_window()
+            time.sleep(5)
+            try:
+                driver.uninstall_addon('@VPNetworksLLC')
+            except Exception as e:            
+                self.to.screen(f"Error: {repr(e)}")
                 
-                for j, video in enumerate(videos_paths):
-                    
-                    entry = self.url_result(self._SITE_URL + video.split("?pl")[0], 'BoyFriendTV', ids_list[j], sanitize_filename(titles_list[j], True)) 
-                    entry.update({'average_rating': rating_list[j]}) 
-                    entries.append(entry)
-                    ep_id += 1
-              
+            driver.get(self._SITE_URL)
+            self.wait_until(driver, 60, ec.title_contains("Gay"))
+            driver.add_cookie({'name': 'rta_terms_accepted', 'value': 'true', 'domain': '.boyfriendtv.com', 'path': '/'})
+            driver.refresh()
+        
+            driver.get(url)
 
-                if '<link rel="next"' in webpage:
+            el_sources = self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.CSS_SELECTOR, "div.thumb.vidItem")))
+            
+            entries = [self.url_result((el_a:=el.find_element_by_tag_name('a')).get_attribute('href').rsplit("/", 1)[0], ie=BoyFriendTVIE.ie_key(), video_id=el.get_attribute('data-video-id'), video_title=sanitize_filename(el_a.get_attribute('title'), restricted=True)) for el in el_sources]
 
-                    webpage = self._download_webpage(urljoin(url+"/*",str(i)), playlist_id, f"Downloading web page playlist {i}")
-                    i += 1
-
-                else:
-                    break
-            else:
-                break
+            
+            el_title = driver.find_element_by_css_selector("h1")  
+            
+            _title = el_title.text.splitlines()[0]
+            
+        except Exception as e:
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")
+            raise ExtractorError(e)
+        finally:
+            driver.quit()
 
                 
 
         return {
             '_type': 'playlist',
             'id': playlist_id,
-            'title': sanitize_filename(pl_title, True),
+            'title': sanitize_filename(_title, restricted=True),
             'entries': entries,
         }
