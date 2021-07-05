@@ -5,8 +5,8 @@ import json
 
 from .common import InfoExtractor
 from ..utils import (
-    ExtractorError,
-    std_headers
+    ExtractorError
+   
 )
 
 
@@ -15,25 +15,19 @@ import time
 import httpx
 
 from seleniumwire import webdriver
-#from selenium.webdriver import Firefox
 from selenium.webdriver.firefox.options import Options
 from selenium.webdriver import FirefoxProfile
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
 from selenium.webdriver import FirefoxProfile
-from selenium.common.exceptions import TimeoutException
-# import Action chains 
-from selenium.webdriver.common.action_chains import ActionChains
-  
-# import KEYS
-from selenium.webdriver.common.keys import Keys
+
 
 
 import sys
 import traceback
 
-import logging
+import random
 
 
 
@@ -377,17 +371,17 @@ class OnlyFansPostIE(OnlyFansBaseIE):
     def _real_initialize(self):
         
         opts = Options()
-        opts.headless = False 
-        opts.add_argument('--no-sandbox')
-        opts.add_argument('--ignore-certificate-errors-spki-list')
-        opts.add_argument('--ignore-ssl-errors')           
-        #prof_id = random.randint(0,5) 
-        prof_id = 0          
+        opts.headless = True 
+        # opts.add_argument('--no-sandbox')
+        # opts.add_argument('--ignore-certificate-errors-spki-list')
+        # opts.add_argument('--ignore-ssl-errors')           
+        prof_id = random.randint(0,5) 
+        #prof_id = 0          
         prof_ff = FirefoxProfile(self._FF_PROF[prof_id])
         self.driver = webdriver.Firefox(options=opts, firefox_profile=prof_ff)
         time.sleep(2)   
         try:          
-
+            self.driver.install_addon("/Users/antoniotorres/projects/comicdl/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
             self.driver.uninstall_addon('@VPNetworksLLC')
             
         except Exception as e:
@@ -463,19 +457,19 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
    
     def _real_initialize(self):
         opts = Options()
-        opts.headless = False            
-        #prof_id = random.randint(0,5) 
-        prof_id = 0          
+        opts.headless = True           
+        prof_id = random.randint(0,5) 
+        #prof_id = 0          
         prof_ff = FirefoxProfile(self._FF_PROF[prof_id])
-        opts.add_argument('--no-sandbox')
-        opts.add_argument('--ignore-certificate-errors-spki-list')
-        opts.add_argument('--ignore-ssl-errors')  
+        # opts.add_argument('--no-sandbox')
+        # opts.add_argument('--ignore-certificate-errors-spki-list')
+        # opts.add_argument('--ignore-ssl-errors')  
         self.driver = webdriver.Firefox(options=opts, firefox_profile=prof_ff)
         
         #self.driver.maximize_window()
         time.sleep(2)   
         try:          
-
+            self.driver.install_addon("/Users/antoniotorres/projects/comicdl/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
             self.driver.uninstall_addon('@VPNetworksLLC')
 
         except Exception as e:
@@ -590,16 +584,18 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
     def _real_initialize(self):
          
         opts = Options()
-        opts.headless = False            
-        #prof_id = random.randint(0,5) 
-        prof_id = 0         
+        opts.headless = True           
+        prof_id = random.randint(0,5) 
+        #prof_id = 0         
         prof_ff = FirefoxProfile(self._FF_PROF[prof_id])
-        opts.add_argument('--no-sandbox')
-        opts.add_argument('--ignore-certificate-errors-spki-list')
-        opts.add_argument('--ignore-ssl-errors') 
+        # opts.add_argument('--no-sandbox')
+        # opts.add_argument('--ignore-certificate-errors-spki-list')
+        # opts.add_argument('--ignore-ssl-errors') 
         self.driver = webdriver.Firefox(options=opts, firefox_profile=prof_ff)
-        time.sleep(2)   
+        time.sleep(5)   
         try:  
+            
+            self.driver.install_addon("/Users/antoniotorres/projects/comicdl/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
             self.driver.uninstall_addon('@VPNetworksLLC')
 
         except Exception as e:

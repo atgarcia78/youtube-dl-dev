@@ -1659,6 +1659,10 @@ from .younow import (
 from .youngbastards import YoungBastardsIE
 from .youporn import YouPornIE
 from .yourporn import YourPornIE
+from .yourporngod import (
+    YourPornGodIE,
+    YourPornGodPlayListIE,
+)
 from .yourupload import YourUploadIE
 from .youtube import (
     YoutubeIE,

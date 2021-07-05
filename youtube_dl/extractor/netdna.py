@@ -52,29 +52,37 @@ class NetDNAIE(InfoExtractor):
         title = None
         _num = None
         _unit = None
-        client = None
-        try:
-            client = httpx.Client()
-            res = client.get(url)
+        
+        count = 0        
+       
+        
+        while(count<3):
+        
+            try:
+                
+                res = httpx.get(url)
 
-            if res.status_code < 400:
-                _num_list = re.findall(r'File size: <strong>([^\ ]+)\ ([^\<]+)<',res.text)
-                if _num_list:
-                    _num = _num_list[0][0].replace(',','.')
-                    if _num.count('.') == 2:
-                        _num = _num.replace('.','', 1)
-                    _unit = _num_list[0][1]
-                _title_list = re.findall(r'h1 class="h2">([^\.]+).([^\<]+)<',res.text)
-                if _title_list:
-                    title = _title_list[0][0].upper().replace("-","_")
-                    ext = _title_list[0][1].lower()
-            
-            
-        except Exception as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            NetDNAIE.to_screen(f"Error: {repr(e)}\n{'!!'.join(lines)}")
-        finally:
-            client.close()        
+                if res.status_code < 400:
+                    _num_list = re.findall(r'File size: <strong>([^\ ]+)\ ([^\<]+)<',res.text)
+                    if _num_list:
+                        _num = _num_list[0][0].replace(',','.')
+                        if _num.count('.') == 2:
+                            _num = _num.replace('.','', 1)
+                        _unit = _num_list[0][1]
+                    _title_list = re.findall(r'h1 class="h2">([^\.]+).([^\<]+)<',res.text)
+                    if _title_list:
+                        title = _title_list[0][0].upper().replace("-","_")
+                        ext = _title_list[0][1].lower()
+                        
+                if title and _num and _unit: break
+                else: count += 1
+                
+                
+            except Exception as e:
+                #lines = traceback.format_exception(*sys.exc_info())
+                #NetDNAIE.to_screen(NetDNAIE, f"Error: {repr(e)}\n{'!!'.join(lines)}")
+                count += 1
+              
        
         if title and _num and _unit:             
             str_id = f"{title}{_num}"
@@ -152,7 +160,7 @@ class NetDNAIE(InfoExtractor):
                 try:
                     driver.uninstall_addon('@VPNetworksLLC')
                 except Exception as e:            
-                    self.to.screen(f"Error: {repr(e)}")
+                    self.to_screen(f"Error: {repr(e)}")
                 
                 driver.get("https://gaybeeg.info") 
                 self.wait_until(driver, 30, ec.title_contains("GayBeeg"))            

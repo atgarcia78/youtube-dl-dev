@@ -56,17 +56,15 @@ class GayBeegBaseIE(InfoExtractor):
                     _list_urls_netdna.append(_url)
         _final_list = list(set(_list_urls_netdna))
         
+        logger.info(_final_list)
+        
         entries = []
         
         for _item in _final_list:
             _info_video = NetDNAIE.get_video_info(_item)
             entries.append({'_type' : 'url', 'url' : _item, 'ie' : 'NetDNA', 'title': _info_video.get('title'), 'id' : _info_video.get('id'), 'filesize': _info_video.get('filesize')})
                 
-        #     _list_el_tag = list(set(_el.find_elements_by_tag_name("a")))
-        # entries = [{'_type' : 'url', 'url' : (_url:=el_tag.get_attribute('href')), 'ie' : 'NetDNA', 'title': (info_video:=NetDNAIE.get_video_info(_url)).get('title'), 'id' : info_video.get('id'), 'size': info_video.get('filesize')}
-        #                 for el in el_list
-        #                             for el_tag in el.find_elements_by_tag_name("a")
-        #                                 if "//netdna-storage" in el_tag.get_attribute('href')] 
+  
                                     
         return entries
     
@@ -78,6 +76,15 @@ class GayBeegBaseIE(InfoExtractor):
                                         for el_taga in el_tagh2.find_elements_by_tag_name("a")
                                             if "//gaybeeg.info" in (_url:=el_taga.get_attribute('href'))]    
         return entries
+    
+    def wait_until(self, driver, time, method):        
+        
+        try:
+            el = WebDriverWait(driver, time).until(method)
+        except Exception as e:
+            el = None
+    
+        return(el)   
 
 class GayBeegPlaylistPageIE(GayBeegBaseIE):
     IE_NAME = "gaybeeg:onepageplaylist"
@@ -99,6 +106,7 @@ class GayBeegPlaylistPageIE(GayBeegBaseIE):
             driver.maximize_window()
             time.sleep(5)
             try:
+                driver.install_addon("/Users/antoniotorres/projects/comicdl/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
                 driver.uninstall_addon('@VPNetworksLLC')
             except Exception as e:
                 lines = traceback.format_exception(*sys.exc_info())
@@ -133,13 +141,7 @@ class GayBeegPlaylistPageIE(GayBeegBaseIE):
         } 
     
 class GayBeegPlaylistIE(GayBeegBaseIE):
-    IE_NAME = "gaybeeg:allpagesplaylist"
-    #_VALID_URL = r'https?://(www\.)?gaybeeg\.info/(?:site|pornstar)/[^/$]+(?:$|/^(page))'
-    #_VALID_URL = r'https?://(www\.)?gaybeeg\.info/(?:site|pornstar)/[^/$]+(?:$|/(?!page/.*))'
-    #_VALID_URL = r'https?://(www\.)?gaybeeg\.info/(?P<type>(?:site|tag|pornstar|\?s=.*))(?:$|(/[^/$]+(?:$|/(?!page.*))))'
-
-    #_VALID_URL = r'https?://(www\.)?gaybeeg\.info/((?P<type>(?:site|pornstar|tag)/[^\/$]+)(?:$|/))?((?P<search>\?s=[^$]+)$)?)'
-    
+    IE_NAME = "gaybeeg:allpagesplaylist"    
     _VALID_URL = r'https?://(www\.)?gaybeeg\.info/(?:((?P<type>(?:site|pornstar|tag))(?:$|(/(?P<name>[^\/$\?]+)))(?:$|/$|/(?P<search1>\?(?:tag|s)=[^$]+)$))|((?P<search2>\?(?:tag|s)=[^$]+)$))'
     
         
@@ -148,10 +150,7 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
         prof_id = random.randint(0,5)
         prof_ff = FirefoxProfile(GayBeegBaseIE._FF_PROF[prof_id])  
         opts = Options()
-        opts.headless = True         
-        # opts.add_argument('--no-sandbox')
-        # opts.add_argument('--ignore-certificate-errors-spki-list')
-        # opts.add_argument('--ignore-ssl-errors')  
+        opts.headless = True
         self.to_screen(f"[worker_pl{i}] init with ffprof[{prof_id}]")
         
         try:
@@ -161,6 +160,7 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
             driver.maximize_window()
             time.sleep(5)            
             try:
+                driver.install_addon("/Users/antoniotorres/projects/comicdl/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
                 driver.uninstall_addon('@VPNetworksLLC')
             except Exception as e:
                 lines = traceback.format_exception(*sys.exc_info())
@@ -257,28 +257,33 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
             driver.maximize_window()
             time.sleep(5)            
             try:
+                driver.install_addon("/Users/antoniotorres/projects/comicdl/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
                 driver.uninstall_addon('@VPNetworksLLC')
             except Exception as e:
                 lines = traceback.format_exception(*sys.exc_info())
-                self._screen(f"Error: \n{'!!'.join(lines)}")
+                self.to_screen(f"Error: \n{'!!'.join(lines)}")
             
-            driver.refresh()
+            
             self.to_screen(f"[worker_pl_main] init with ffprof[{prof_id}]")
+            
+            driver.get("https://gaybeeg.info") 
+            self.wait_until(driver, 30, ec.title_contains("GayBeeg"))
                         
             self.report_extraction(url)
             driver.get(url)
             time.sleep(1)                
             #el_list = WebDriverWait(driver, 120).until(ec.presence_of_all_elements_located((By.XPATH, "//a[@href]")))
-            el_list = WebDriverWait(driver, 120).until(ec.presence_of_all_elements_located((By.CLASS_NAME, "hentry-large")))
+            el_list = self.wait_until(driver, 120, ec.presence_of_all_elements_located((By.CLASS_NAME, "hentry-large")))
             #self.to_screen(f"{[el.text for el in el_list]}")
             if el_list:
                 
                 _entries = self._get_entries_netdna(el_list)
                 if _entries:
+                    logger.info(_entries)
                     for entry in _entries:
                         if entry.get('id'): self.queue_entries.put(entry)
             
-            el_pagination = driver.find_elements_by_class_name("pagination")
+            
             
             mobj = re.search(self._VALID_URL,url)
             
@@ -291,6 +296,7 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
             
             _url_fix = "/".join(_items_url_fix)
             
+            el_pagination = self.wait_until(driver, 30, ec.presence_of_all_elements_located((By.CLASS_NAME, "pagination")))
             
             if el_pagination:
                 webpage = el_pagination[0].get_attribute("innerHTML")
@@ -311,7 +317,7 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
                     _url = "/".join(_items_url)                   
                     driver.get(_url)
                     time.sleep(1) 
-                    el_list = WebDriverWait(driver, 120).until(ec.presence_of_all_elements_located((By.CLASS_NAME, "hentry-large")))
+                    el_list = self.wait_until(driver, 120, ec.presence_of_all_elements_located((By.CLASS_NAME, "hentry-large")))
                     #self.to_screen([el.text for el in el_list])
                     if el_list:
                         _entries = self._get_entries_netdna(el_list)
@@ -341,6 +347,8 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
                     self.total = n_pages - 1
                     self.completed = 0
                     self.to_screen(f"[worker_pl_main] nworkers pool [{self.workers}] total pages to download [{self.total}]")
+                    
+                
                     with ThreadPoolExecutor(max_workers=self.workers) as ex:
                         for i in range(self.workers):
                             ex.submit(self._worker_pl,i) 
@@ -392,6 +400,7 @@ class GayBeegIE(GayBeegBaseIE):
             driver.maximize_window()
             time.sleep(5)   
             try:
+                driver.install_addon("/Users/antoniotorres/projects/comicdl/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
                 driver.uninstall_addon('@VPNetworksLLC')
             except Exception as e:
                 lines = traceback.format_exception(*sys.exc_info())

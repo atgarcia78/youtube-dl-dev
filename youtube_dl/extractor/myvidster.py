@@ -6,20 +6,51 @@ from tarfile import ExtractError
 from .common import InfoExtractor
 from ..utils import (
     ExtractorError,
-    urlencode_postdata,
-    HEADRequest,
+    int_or_none,
     std_headers,
     sanitize_filename
 )
 from collections import OrderedDict
 import httpx
-import brotli
+import html
+import time
 class MyVidsterBaseIE(InfoExtractor):
 
     _LOGIN_URL = "https://www.myvidster.com/user/"
     _SITE_URL = "https://www.myvidster.com"
     _NETRC_MACHINE = "myvidster"
     
+    
+    def _get_filesize(self, url):
+        
+        count = 0
+        try:
+            
+            _res = None
+            while (count<3):
+                
+                try:
+                    
+                    res = httpx.head(url, headers=std_headers)
+                    if res.status_code > 400:
+                        time.sleep(1)
+                        count += 1
+                    else: 
+                        _res = int_or_none(res.headers.get('content-length')) 
+                        break
+            
+                except Exception as e:
+                    count += 1
+        except Exception as e:
+            pass
+
+        
+        return _res
+    
+    def _is_valid(self, url):
+        
+        res = httpx.head(url, headers=std_headers)
+        return (res.status_code <= 200)
     
     def _headers_ordered(self, extra=None):
         _headers = OrderedDict()
@@ -38,7 +69,7 @@ class MyVidsterBaseIE(InfoExtractor):
     def _log_in(self, client):
         
         username, password = self._get_login_info()
-        self.to_screen(f"{username}:{password}")
+        
 
         self.report_login()
         if not username or not password:
@@ -57,12 +88,12 @@ class MyVidsterBaseIE(InfoExtractor):
         }
 
         _headers = self._headers_ordered({"Upgrade-Insecure-Requests": "1"})         
-        _aux = dict()
-        _aux.update({
+        
+        _aux = {
                 "Referer": self._LOGIN_URL,
                 "Origin": self._SITE_URL,
                 "Content-Type": "application/x-www-form-urlencoded"
-            })
+        }
         _headers_post = self._headers_ordered(_aux)
         
         client.get(self._LOGIN_URL, headers=_headers)
@@ -74,14 +105,14 @@ class MyVidsterBaseIE(InfoExtractor):
                     timeout=60
                 )
 
-        if res.url != "https://www.myvidster.com/user/home.php":
+        if str(res.url) != "https://www.myvidster.com/user/home.php":
             raise ExtractorError("Login failed")
 
 
-    def islogged(self):
+    def islogged(self, client):
         
-        webpage, _ = self._download_webpage_handle(self._LOGIN_URL, None)
-        return("action=log_out" in webpage)
+        res = client.get(self._LOGIN_URL)
+        return("action=log_out" in res.text)
 
 class MyVidsterIE(MyVidsterBaseIE):
     IE_NAME = 'myvidster'
@@ -93,36 +124,35 @@ class MyVidsterIE(MyVidsterBaseIE):
     def _real_initialize(self):
         self.client = httpx.Client()   
                        
-        self._log_in(self.client)
+        try:
+            if not self.islogged(self.client): self._log_in(self.client)
+        except Exception as e:
+            self.client.close()
 
     def _real_extract(self, url):
         video_id = self._match_id(url)
         url = url.replace("vsearch", "video")
         _headers = self._headers_ordered({"Upgrade-Insecure-Requests": "1"}) 
-        res = self.client.get(url,headers=_headers)
-        self.to_screen(f"{res.headers}:{res.request.headers}")
-        if res.headers.get("content-encoding") == "br":
-            webpage = (brotli.decompress(res.content)).decode("UTF-8")
-        else: webpage = res.text
-
-        res = re.findall(r"title>([^<]+)<", webpage)
-       
-        #self.to_screen(f"{webpage}")
-        if res:
-            title = res[0]
-        else: title = url.split("/")[-1]
-
-        title = sanitize_filename(title, restricted=True)
-                
-        real_url = None
         
-        res = re.findall(r"onClick=\"reload_video\(\'([^\']*)\'", webpage.replace(" ",""))
-        if res:
-            real_url = res[0]
+        self.report_extraction(url)
+        
+        res = self.client.get(url, headers=_headers) 
+        webpage = re.sub('[\t\n]', '', html.unescape(res.text))
+        mobj = re.findall(r"<title>([^<]+)<", webpage)
+        title = mobj[0] if mobj else url.split("/")[-1]    
+        
+        mobj = re.findall(r'rel=[\'\"]videolink[\'\"] href=[\'\"]([^\'\"]+)[\'\"]', webpage)
+        videolink = httpx.URL(mobj[0]) if mobj and self._is_valid(mobj[0]) else ""
+        
+        
+        mobj2 = re.findall(r"reload_video\([\'\"]([^\'\"]+)[\'\"]", webpage)
+        embedlink = mobj2[0] if mobj2 and self._is_valid(mobj2[0]) else ""
+        
+        if videolink and embedlink:
+            if (httpx.URL(videolink).host == httpx.URL(embedlink).host): real_url = videolink
+            else: real_url = embedlink
         else:
-            res = re.findall(r'rel=\"videolink\"href\=\"([^\"]+)\"', webpage.replace(" ",""))
-            if res:
-                real_url = res[0]
+            real_url = videolink or embedlink      
             
         if not real_url:
             raise ExtractError("Can't find real URL")
@@ -131,37 +161,29 @@ class MyVidsterIE(MyVidsterBaseIE):
 
         if real_url.startswith("https://www.myvidster.com/video"):
             
-            webpage = self._download_webpage(real_url, video_id)
-            str_regex = r'source src="(?P<video_url>.*)" type="video'
-            mobj = re.search(str_regex, webpage)
+            res = self.client.get(real_url,headers=_headers)
+            webpage = re.sub('[\t\n]', '', html.unescape(res.text))
+            mobj = re.findall(r'source src="(?P<video_url>.*)" type="video', webpage)
+            video_url = mobj[0] if mobj and self._is_valid(mobj[0]) else ""
+            if not video_url: raise ExtractError("Can't find real URL")           
+            filesize = self._get_filesize(video_url)
 
-                        
-            if mobj:
-                video_url = mobj.group('video_url')
 
-                std_headers['Referer'] = url
-                std_headers['Accept'] = "*/*"
-                reqhead = HEADRequest(video_url)
-                res = self._request_webpage(reqhead, None, headers={'Range' : 'bytes=0-'})
-                filesize = res.getheader('Content-Lenght')
-                if filesize:
-                    filesize = int(filesize)    
-
-                format_video = {
-                    'format_id' : 'http-mp4',
-                    'url' : video_url,
-                    'filesize' : filesize,
-                    'ext' : 'mp4'
-                }
+            format_video = {
+                'format_id' : 'http-mp4',
+                'url' : video_url,
+                'filesize' : filesize,
+                'ext' : 'mp4'
+            }
             
-                entry_video = {
-                    'id' : video_id,
-                    'title' : title,
-                    'formats' : [format_video],
-                    'ext': 'mp4'
-                }
+            entry_video = {
+                'id' : video_id,
+                'title' : sanitize_filename(title, restricted=True),
+                'formats' : [format_video],
+                'ext': 'mp4'
+            }
                 
-                return entry_video
+ 
 
 
         else:
@@ -170,54 +192,69 @@ class MyVidsterIE(MyVidsterBaseIE):
                 '_type' : 'url_transparent',
                 'url' : real_url,
                 'id' : video_id,
-                'title' : title
+                'title' : sanitize_filename(title, restricted=True)
             }
 
-            return entry_video
+        return entry_video
 
 
-class MyVidsterChannelIE(MyVidsterBaseIE):
-    IE_NAME = 'myvidster:channel'
-    #_VALID_URL = r'https?://(?:www\.)?myvidster\.com/channel/(?P<id>\d+)/?(?:.*|$)'
-    _VALID_URL = r'https?://(?:www\.)?myvidster\.com/channel/(?P<id>\d+).*'
+class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
+    IE_NAME = 'myvidster:channel:playlist'   
+    _VALID_URL = r'https?://(?:www\.)?myvidster\.com/channel/(?P<id>\d+)/?(?P<title>\w+)?'
     _POST_URL = "https://www.myvidster.com/processor.php"
  
+    client = None
 
     def _real_initialize(self):
-        if self.islogged():
-            return
-        else:
-            self._log_in()
+        self.client = httpx.Client(headers=std_headers)   
+                       
+        try:
+            if not self.islogged(): self._log_in(self.client)
+        except Exception as e:
+            self.client.close()
 
-    def _real_initialize(self):
-        if self.islogged():
-            return
-        else:
-            self._log_in()
+
 
     def _real_extract(self, url):
         channelid = self._match_id(url)
-        webpage = self._download_webpage(url, channelid, "Downloading main channel web page")
+        
+        self.report_extraction(url)
+        _headers = self._headers_ordered({"Upgrade-Insecure-Requests": "1"}) 
+                
+        res = self.client.get(url, headers=_headers)
+        webpage = re.sub('[\t\n]', '', html.unescape(res.text))
+        
         title = self._search_regex(r'<title>([\w\s]+)</title>', webpage, 'title', default=f"MyVidsterChannel_{channelid}", fatal=False)
         
-        num_videos = self._search_regex(r"display_channel\(.+,(\d+)\)", webpage, 'number of videos')
+        mobj = re.findall(r"display_channel\(.*,[\'\"](\d+)[\'\"]\)", webpage)
+        num_videos = mobj[0] if mobj else 100000
 
         info = {
             'action' : 'display_channel',
             'channel_id': channelid,
-            'page' : 1,
+            'page' : '1',
             'thumb_num' : num_videos,
             'count' : num_videos
         }
+        
+        _aux = {
+                "Referer": url,                
+                "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+                "x-requested-with" : "XMLHttpRequest",
+                "Accept": "*/*"
+        }
+        
+        _headers_post = self._headers_ordered(_aux)
+        
+                
+        res = self.client.post(
+                    self._POST_URL,               
+                    data=info,
+                    headers=_headers_post,
+                    
+                )
 
-        webpage, ulrh = self._download_webpage_handle(
-            self._POST_URL,
-            channelid,
-            None,
-            None,
-            data=urlencode_postdata(info),
-            headers={'Referer' : url, 'Accept' : '*/*', 'x-requested-with' : 'XMLHttpRequest', 'Content-type': 'application/x-www-form-urlencoded;charset=UTF-8'}
-        )
+        webpage = re.sub('[\t\n]', '', html.unescape(res.text))
 
         list_videos = re.findall(r'<a href=\"(/video/[^\"]+)\" class', webpage)
 

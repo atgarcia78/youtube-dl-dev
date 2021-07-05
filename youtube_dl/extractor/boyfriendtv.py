@@ -35,6 +35,22 @@ import traceback
 import sys
 
 import httpx
+
+
+class checkvideo_and_find():
+    
+    def __call__(self, driver):
+        
+        el = driver.title       
+        if "deleted" in el.lower() or "removed" in el.lower():            
+            return -1        
+        else:
+            
+            el = driver.find_elements_by_class_name("download-item")
+            if el: return el
+            else: return False
+                        
+            
 class BoyFriendTVBaseIE(InfoExtractor):
     _LOGIN_URL = 'https://www.boyfriendtv.com/login/'
     _SITE_URL = 'https://www.boyfriendtv.com'
@@ -48,12 +64,12 @@ class BoyFriendTVBaseIE(InfoExtractor):
     
     def wait_until(self, driver, time, method):
         
-        error = False
+        
         try:
             el = WebDriverWait(driver, time).until(method)
         except Exception as e:
             el = None
-            error = True
+         
         return(el) 
     
     def wait_until_not(self, driver, time, method):
@@ -175,7 +191,9 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
             driver.maximize_window()
             time.sleep(5)            
             try:
+                driver.install_addon("/Users/antoniotorres/Projects/comicdl/myaddon/web-ext-artifacts/myaddon-1.0.zip", temporary=True)
                 driver.uninstall_addon('@VPNetworksLLC')
+                
             except Exception as e:
                 lines = traceback.format_exception(*sys.exc_info())
                 self._screen(f"Error: \n{'!!'.join(lines)}")       
@@ -185,44 +203,59 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
                 for cookie in _cookies: driver.add_cookie(cookie)
             
             driver.refresh()
-            driver.get(url)
             
-            el_sources = self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.CLASS_NAME, "download-item")))
+            count = 0
             
-            _cookies = driver.get_cookies()
-            cl = httpx.Client() 
-            for cookie in _cookies: cl.cookies.set(cookie['name'], cookie['value'], cookie['domain'], cookie['path'])
-            cl.headers['user-agent'] = std_headers['User-Agent']
+            while(count < 3):
+                
+                driver.get(url)
             
-            _formats = []
-            for _el in el_sources:
-                _info_video = self._get_info_video(cl, _el.get_attribute('href'))
-                _innertext = _el.get_attribute('innerText') 
-                mobj = re.search(r'\n\t(?P<height>\d+)p', _innertext)
-                _height = int(mobj.group('height')) if mobj else None
-                _formats.append({
-                    'url': _info_video.get('url'), 
-                    'height':  _height,
-                    'ext': 'mp4',
-                    'filesize': _info_video.get('filesize'),
-                    'format_id': f'http{_height}'})                   
-           
+                el_sources = self.wait_until(driver, 120, checkvideo_and_find())
             
+                if el_sources == -1: raise ExtractorError("video removed")
+                elif not el_sources: count += 1
+                else: break 
             
-            self._sort_formats(_formats)
+            if count == 3: raise ExtractorError("cant find video info")
             
             _title = self._search_regex((r'<h1>(?P<title>[^\<]+)\<', r'\"og:title\" content=\"(?P<title>[^\"]+)\"'), driver.page_source, "title", fatal=False, default="no_title", group="title")
             
-                 
+            try:
+                _cookies = driver.get_cookies()
+                cl = httpx.Client() 
+                for cookie in _cookies: cl.cookies.set(cookie['name'], cookie['value'], cookie['domain'], cookie['path'])
+                cl.headers['user-agent'] = std_headers['User-Agent']
+                
+                _formats = []
+                for _el in el_sources:
+                    _info_video = self._get_info_video(cl, _el.get_attribute('href'))
+                    _innertext = _el.get_attribute('innerText') 
+                    mobj = re.search(r'\n\t(?P<height>\d+)p', _innertext)
+                    _height = int(mobj.group('height')) if mobj else None
+                    _formats.append({
+                        'url': _info_video.get('url'), 
+                        'height':  _height,
+                        'ext': 'mp4',
+                        'filesize': _info_video.get('filesize'),
+                        'format_id': f'http{_height}'})   
             
+                self._sort_formats(_formats)
+                
+            # except Exception as e:
+            #     lines = traceback.format_exception(*sys.exc_info())
+            #     self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")
+            #     raise ExtractorError(str(e))
+            finally:
+                cl.close()        
             
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")
-            raise ExtractorError(e)
+            if "ExtractorError" in str(e.__class__): raise
+            else: raise ExtractorError(str(e))
         finally:
             driver.quit()
-            cl.close()
+            
             
         return({
                 'id': _video_id,
@@ -264,21 +297,31 @@ class BoyFriendTVPlayListIE(BoyFriendTVBaseIE):
             driver.add_cookie({'name': 'rta_terms_accepted', 'value': 'true', 'domain': '.boyfriendtv.com', 'path': '/'})
             driver.refresh()
         
+            entries = []
             driver.get(url)
-
-            el_sources = self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.CSS_SELECTOR, "div.thumb.vidItem")))
-            
-            entries = [self.url_result((el_a:=el.find_element_by_tag_name('a')).get_attribute('href').rsplit("/", 1)[0], ie=BoyFriendTVIE.ie_key(), video_id=el.get_attribute('data-video-id'), video_title=sanitize_filename(el_a.get_attribute('title'), restricted=True)) for el in el_sources]
-
-            
-            el_title = driver.find_element_by_css_selector("h1")  
-            
+            el_title = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "h1")))
             _title = el_title.text.splitlines()[0]
+            
+            while True:
+
+                el_sources = self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.CSS_SELECTOR, "div.thumb.vidItem")))
+                
+                if el_sources:                        
+                    entries += [self.url_result((el_a:=el.find_element_by_tag_name('a')).get_attribute('href').rsplit("/", 1)[0], ie=BoyFriendTVIE.ie_key(), video_id=el.get_attribute('data-video-id'), video_title=sanitize_filename(el_a.get_attribute('title'), restricted=True)) for el in el_sources]
+
+                el_next = self.wait_until(driver, 60, ec.presence_of_element_located((By.PARTIAL_LINK_TEXT, "Next")))
+                if el_next: 
+                    driver.get(urljoin(self._SITE_URL, el_next.get_attribute('href')))                    
+                else: break
+                
+            if not entries: raise ExtractorError("cant find any video")
+            
             
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")
-            raise ExtractorError(e)
+            if "ExtractorError" in str(e.__class__): raise
+            else: raise ExtractorError(str(e))            
         finally:
             driver.quit()
 
